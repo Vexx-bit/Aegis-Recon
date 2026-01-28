@@ -1,0 +1,28 @@
+# Aegis Recon - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Redis queue system
+redis>=4.5.0
+
+# MySQL database connector
+mysql-connector-python>=8.0.0
+
+# Process management
+psutil>=5.9.0
+
+# PDF report generation
+reportlab>=4.0.0
+
+# DNS resolution (for Sublist3r)
+dnspython>=2.3.0
+
+# HTTP requests (for theHarvester and Sublist3r)
+requests>=2.31.0
+
+# HTML parsing (for theHarvester)
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# Optional: For enhanced OSINT features
+# shodan>=1.28.0  # Requires API key
+# censys>=2.1.0   # Requires API key

@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 500 333.3">
+  <defs>
+    <style>
+      /* Floating animation for edges */
+      @keyframes float {
+        0%, 100% {
+          transform: translateY(0px);
+          opacity: 0.7;
+        }
+        50% {
+          transform: translateY(-10px);
+          opacity: 1;
+        }
+      }
+      
+      @keyframes float-reverse {
+        0%, 100% {
+          transform: translateY(0px);
+          opacity: 0.7;
+        }
+        50% {
+          transform: translateY(10px);
+          opacity: 1;
+        }
+      }
+      
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 0.6;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      
+      /* Apply animations to edge groups */
+      .edge-line {
+        animation: pulse 3s ease-in-out infinite;
+      }
+      
+      .user-icon-1 {
+        animation: float 2s ease-in-out infinite;
+        transform-origin: center;
+      }
+      
+      .user-icon-2 {
+        animation: float 2.5s ease-in-out infinite 0.3s;
+        transform-origin: center;
+      }
+      
+      .user-icon-3 {
+        animation: float-reverse 2.2s ease-in-out infinite 0.6s;
+        transform-origin: center;
+      }
+      
+      .user-icon-4 {
+        animation: float 2.8s ease-in-out infinite 0.9s;
+        transform-origin: center;
+      }
+      
+      .user-icon-5 {
+        animation: float-reverse 2.4s ease-in-out infinite 1.2s;
+        transform-origin: center;
+      }
+      
+      .user-icon-6 {
+        animation: float 2.6s ease-in-out infinite 1.5s;
+        transform-origin: center;
+      }
+      
+      .user-icon-7 {
+        animation: float-reverse 2.3s ease-in-out infinite 1.8s;
+        transform-origin: center;
+      }
+      
+      .user-icon-8 {
+        animation: float 2.7s ease-in-out infinite 2.1s;
+        transform-origin: center;
+      }
+    </style>
+    
+    <!-- Gradient for edges -->
+    <linearGradient id="edgeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#83a4d4;stop-opacity:0.3" />
+      <stop offset="50%" style="stop-color:#b6fbff;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#83a4d4;stop-opacity:0.3" />
+    </linearGradient>
+    
+    <!-- Animated gradient -->
+    <linearGradient id="edgeGradientAnimated" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#83a4d4;stop-opacity:0.3">
+        <animate attributeName="offset" values="0;1;0" dur="3s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="50%" style="stop-color:#b6fbff;stop-opacity:1">
+        <animate attributeName="offset" values="0.5;1;0.5" dur="3s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" style="stop-color:#83a4d4;stop-opacity:0.3">
+        <animate attributeName="offset" values="1;0;1" dur="3s" repeatCount="indefinite" />
+      </stop>
+    </linearGradient>
+  </defs>
+  
+  <title>Animated Network Diagram</title>
+  
+  <g id="network-edges">
+    <!-- Example edges with animation classes -->
+    <!-- Edge 1: Center to Top -->
+    <line x1="250" y1="180" x2="270" y2="90" class="edge-line" stroke="url(#edgeGradientAnimated)" stroke-width="2" opacity="0.7"/>
+    
+    <!-- Edge 2: Center to Right -->
+    <line x1="250" y1="180" x2="330" y2="165" class="edge-line" stroke="url(#edgeGradientAnimated)" stroke-width="2" opacity="0.7"/>
+    
+    <!-- Edge 3: Center to Bottom Right -->
+    <line x1="250" y1="180" x2="285" y2="270" class="edge-line" stroke="url(#edgeGradientAnimated)" stroke-width="2" opacity="0.7"/>
+    
+    <!-- Edge 4: Center to Bottom Left -->
+    <line x1="250" y1="180" x2="212" y2="230" class="edge-line" stroke="url(#edgeGradientAnimated)" stroke-width="2" opacity="0.7"/>
+    
+    <!-- Edge 5: Center to Left -->
+    <line x1="250" y1="180" x2="150" y2="180" class="edge-line" stroke="url(#edgeGradientAnimated)" stroke-width="2" opacity="0.7"/>
+    
+    <!-- Edge 6: Center to Top Left -->
+    <line x1="250" y1="180" x2="180" y2="120" class="edge-line" stroke="url(#edgeGradientAnimated)" stroke-width="2" opacity="0.7"/>
+    
+    <!-- Edge 7: Center to Top Right -->
+    <line x1="250" y1="180" x2="320" y2="90" class="edge-line" stroke="url(#edgeGradientAnimated)" stroke-width="2" opacity="0.7"/>
+    
+    <!-- Edge 8: Center to Far Right -->
+    <line x1="250" y1="180" x2="350" y2="190" class="edge-line" stroke="url(#edgeGradientAnimated)" stroke-width="2" opacity="0.7"/>
+  </g>
+  
+  <g id="network-nodes">
+    <!-- Central Node (Server/Main Hub) -->
+    <g class="central-node">
+      <circle cx="250" cy="180" r="25" fill="#83a4d4" opacity="0.9"/>
+      <circle cx="250" cy="180" r="20" fill="#b6fbff" opacity="0.7"/>
+      <text x="250" y="185" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">HUB</text>
+    </g>
+    
+    <!-- User Icon 1 - Top -->
+    <g class="user-icon-1" transform="translate(270, 90)">
+      <circle r="15" fill="#4a90e2" opacity="0.9"/>
+      <path d="M-5,-2 Q-5,-7 0,-7 Q5,-7 5,-2 M-7,5 Q-7,0 0,0 Q7,0 7,5" stroke="#fff" stroke-width="2" fill="none"/>
+    </g>
+    
+    <!-- User Icon 2 - Right -->
+    <g class="user-icon-2" transform="translate(330, 165)">
+      <circle r="15" fill="#4a90e2" opacity="0.9"/>
+      <path d="M-5,-2 Q-5,-7 0,-7 Q5,-7 5,-2 M-7,5 Q-7,0 0,0 Q7,0 7,5" stroke="#fff" stroke-width="2" fill="none"/>
+    </g>
+    
+    <!-- User Icon 3 - Bottom Right -->
+    <g class="user-icon-3" transform="translate(285, 270)">
+      <circle r="15" fill="#4a90e2" opacity="0.9"/>
+      <path d="M-5,-2 Q-5,-7 0,-7 Q5,-7 5,-2 M-7,5 Q-7,0 0,0 Q7,0 7,5" stroke="#fff" stroke-width="2" fill="none"/>
+    </g>
+    
+    <!-- User Icon 4 - Bottom Left -->
+    <g class="user-icon-4" transform="translate(212, 230)">
+      <circle r="15" fill="#4a90e2" opacity="0.9"/>
+      <path d="M-5,-2 Q-5,-7 0,-7 Q5,-7 5,-2 M-7,5 Q-7,0 0,0 Q7,0 7,5" stroke="#fff" stroke-width="2" fill="none"/>
+    </g>
+    
+    <!-- User Icon 5 - Left -->
+    <g class="user-icon-5" transform="translate(150, 180)">
+      <circle r="15" fill="#4a90e2" opacity="0.9"/>
+      <path d="M-5,-2 Q-5,-7 0,-7 Q5,-7 5,-2 M-7,5 Q-7,0 0,0 Q7,0 7,5" stroke="#fff" stroke-width="2" fill="none"/>
+    </g>
+    
+    <!-- User Icon 6 - Top Left -->
+    <g class="user-icon-6" transform="translate(180, 120)">
+      <circle r="15" fill="#4a90e2" opacity="0.9"/>
+      <path d="M-5,-2 Q-5,-7 0,-7 Q5,-7 5,-2 M-7,5 Q-7,0 0,0 Q7,0 7,5" stroke="#fff" stroke-width="2" fill="none"/>
+    </g>
+    
+    <!-- User Icon 7 - Top Right -->
+    <g class="user-icon-7" transform="translate(320, 90)">
+      <circle r="15" fill="#4a90e2" opacity="0.9"/>
+      <path d="M-5,-2 Q-5,-7 0,-7 Q5,-7 5,-2 M-7,5 Q-7,0 0,0 Q7,0 7,5" stroke="#fff" stroke-width="2" fill="none"/>
+    </g>
+    
+    <!-- User Icon 8 - Far Right -->
+    <g class="user-icon-8" transform="translate(350, 190)">
+      <circle r="15" fill="#4a90e2" opacity="0.9"/>
+      <path d="M-5,-2 Q-5,-7 0,-7 Q5,-7 5,-2 M-7,5 Q-7,0 0,0 Q7,0 7,5" stroke="#fff" stroke-width="2" fill="none"/>
+    </g>
+  </g>
+</svg>

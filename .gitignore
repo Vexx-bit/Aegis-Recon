@@ -1,0 +1,36 @@
+# Environment variables and secrets
+.env
+.env.backup
+.env.local
+
+# Dependency directories
+node_modules/
+vendor/
+__pycache__/
+*.pyc
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+backend/logs/*.log
+temp/
+tmp/
+*.tmp
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Private keys / Certs
+*.pem
+*.key
+*.crt
+
+# Build outputs
+dist/
+build/

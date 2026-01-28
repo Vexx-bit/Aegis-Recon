@@ -1,0 +1,46 @@
+[Unit]
+Description=Aegis Recon Queue Worker
+After=network.target redis.service mysql.service
+Wants=redis.service mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/html/Aegis Recon/ai_services
+Environment="PATH=/usr/bin:/usr/local/bin"
+EnvironmentFile=/var/www/html/Aegis Recon/.env
+
+# Main process
+ExecStart=/usr/bin/python3 /var/www/html/Aegis Recon/ai_services/queue_worker.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=5min
+StartLimitBurst=3
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=2G
+CPUQuota=200%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aegis-queue-worker
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp /var/log/aegis-recon
+
+# Graceful shutdown
+TimeoutStopSec=60
+KillMode=mixed
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
