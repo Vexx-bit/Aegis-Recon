@@ -889,20 +889,20 @@ function displayHosts(hosts) {
             html += `<div class="mb-3">
                 <h6 class="fw-semibold"><i class="bi bi-door-open"></i> Open Ports</h6>
                 <div class="table-responsive">
-                    <table class="table table-sm">
+                    <table class="table table-sm text-white-50">
                         <thead>
                             <tr>
-                                <th>Port</th>
-                                <th>State</th>
-                                <th>Service</th>
+                                <th>PORT</th>
+                                <th>STATE</th>
+                                <th>SERVICE</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${ports.map(port => `
                                 <tr>
-                                    <td><strong>${port.port}</strong></td>
-                                    <td><span class="badge bg-success">${port.state || 'open'}</span></td>
-                                    <td>${port.service || 'unknown'}</td>
+                                    <td class="text-primary font-monospace">${port.port}</td>
+                                    <td><span class="badge bg-success bg-opacity-25 text-success border border-success">${port.state || 'open'}</span></td>
+                                    <td class="text-white">${port.service || 'unknown'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -912,13 +912,14 @@ function displayHosts(hosts) {
         }
         
         // Vulnerabilities (Handle legacy separate list OR new Tech/Vulners issues)
-        let vulns = hostData.vulnerabilities || [];
+        let vulns = [...(hostData.vulnerabilities || [])];
+        
         if (hostData.technologies?.vulners_cves) {
              hostData.technologies.vulners_cves.forEach(cve => {
                  vulns.push({
-                     title: cve.id + ': ' + cve.title,
+                     title: `<span class="text-danger fw-bold">${cve.id}</span>: ${cve.title}`,
                      url: cve.link,
-                     severity: 'high'
+                     severity: 'critical'
                  });
              });
         }
@@ -926,21 +927,22 @@ function displayHosts(hosts) {
         if (vulns.length > 0) {
             html += `<div class="mb-3">
                 <h6 class="fw-semibold text-danger">
-                    <i class="bi bi-bug-fill"></i> Vulnerabilities (${vulns.length})
+                    <i class="bi bi-exclamation-triangle-fill"></i> DETECTED THREATS (${vulns.length})
                 </h6>
                 ${vulns.map(vuln => `
-                    <div class="vuln-item medium">
+                    <div class="vuln-item critical mb-2 p-3 border border-danger bg-danger bg-opacity-10 rounded">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <strong>${vuln.msg || vuln.title || 'Vulnerability'}</strong>
-                                ${vuln.url ? `<br><small class="text-muted"><a href="${vuln.url}" target="_blank">${vuln.url}</a></small>` : ''}
+                                <div class="mb-1">${vuln.msg || vuln.title || 'Vulnerability'}</div>
+                                ${vuln.url ? `<a href="${vuln.url}" target="_blank" class="text-info text-decoration-none small"><i class="bi bi-link-45deg"></i> Reference Link</a>` : ''}
                             </div>
+                            <span class="badge bg-danger">CRITICAL</span>
                         </div>
                     </div>
                 `).join('')}
             </div>`;
         } else {
-            html += `<div class="alert alert-success mb-0">
+            html += `<div class="alert alert-success bg-success bg-opacity-10 border-success text-success mb-0">
                 <i class="bi bi-shield-check"></i> No critical vulnerabilities detected
             </div>`;
         }
@@ -950,7 +952,6 @@ function displayHosts(hosts) {
     
     hostsContent.innerHTML = html || '<p class="text-muted">No host data available</p>';
 }
-
 
 /**
  * Reset dashboard for new scan
@@ -965,7 +966,7 @@ function resetDashboard() {
     // Reset form
     domainInput.value = '';
     startScanBtn.disabled = false;
-    startScanBtn.innerHTML = '<i class="bi bi-play-circle-fill"></i> Start Comprehensive Scan';
+    startScanBtn.innerHTML = '<i class="bi bi-play-circle-fill"></i> EXECUTE RECONNAISSANCE'; // Reset to futuristic Text
     
     // Show form, hide sections
     scanForm.closest('.card').style.display = 'block';
