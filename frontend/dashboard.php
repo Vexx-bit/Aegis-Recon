@@ -1,0 +1,506 @@
+<?php
+require_once __DIR__ . '/../backend/config/env.php';
+$apiKey = getenv('API_KEY');
+?>
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis Recon - Security Scanning Dashboard</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Config Injection -->
+    <script>
+        window.AEGIS_CONFIG = {
+            apiKey: "<?php echo htmlspecialchars($apiKey ?? ''); ?>",
+            apiBaseUrl: "../backend/api.php"
+        };
+    </script>
+    
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --info-color: #3b82f6;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        .dashboard-container {
+            padding: 2rem 0;
+            max-width: 1400px;
+        }
+        
+        .header-logo {
+            color: white;
+            font-size: 3rem;
+            font-weight: 700;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            margin-bottom: 0.5rem;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            border-radius: 16px 16px 0 0 !important;
+            padding: 1.25rem 1.5rem;
+            font-weight: 600;
+            font-size: 1.1rem;
+            border: none;
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 2rem 1rem;
+            border-radius: 16px;
+            background: white;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .stat-label {
+            color: #6b7280;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+        
+        .stat-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.8;
+        }
+        
+        .risk-critical { color: var(--danger-color); }
+        .risk-high { color: #f97316; }
+        .risk-medium { color: var(--warning-color); }
+        .risk-low { color: var(--success-color); }
+        .risk-info { color: var(--info-color); }
+        
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .status-queued { background: #dbeafe; color: #1e40af; }
+        .status-running { background: #fef3c7; color: #92400e; }
+        .status-done { background: #d1fae5; color: #065f46; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+        
+        .tech-badge {
+            display: inline-block;
+            padding: 0.4rem 0.8rem;
+            margin: 0.25rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .tech-badge.cms { background: #dbeafe; color: #1e40af; }
+        .tech-badge.server { background: #fce7f3; color: #9f1239; }
+        .tech-badge.language { background: #fef3c7; color: #92400e; }
+        .tech-badge.framework { background: #d1fae5; color: #065f46; }
+        
+        .vuln-item {
+            padding: 1rem;
+            border-left: 4px solid #e5e7eb;
+            margin-bottom: 0.75rem;
+            border-radius: 0 8px 8px 0;
+            background: #f9fafb;
+            transition: all 0.2s ease;
+        }
+        
+        .vuln-item:hover {
+            background: #f3f4f6;
+            border-left-color: var(--primary-color);
+        }
+        
+        .vuln-item.critical { border-left-color: var(--danger-color); }
+        .vuln-item.high { border-left-color: #f97316; }
+        .vuln-item.medium { border-left-color: var(--warning-color); }
+        .vuln-item.low { border-left-color: var(--success-color); }
+        
+        .progress {
+            height: 8px;
+            border-radius: 10px;
+            background: #e5e7eb;
+        }
+        
+        .progress-bar {
+            border-radius: 10px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        }
+        
+        .hidden { display: none; }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .alert {
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+        }
+        
+        .table {
+            margin-bottom: 0;
+        }
+        
+        .table thead th {
+            border-bottom: 2px solid #e5e7eb;
+            color: #6b7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+        }
+        
+        .badge {
+            padding: 0.35rem 0.75rem;
+            font-weight: 600;
+            border-radius: 6px;
+        }
+        
+        .email-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem;
+            background: #f3f4f6;
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+        
+        .host-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            background: #fafafa;
+            transition: all 0.2s ease;
+        }
+        
+        .host-card:hover {
+            border-color: var(--primary-color);
+            background: white;
+        }
+        
+        .spinner-border-sm {
+            width: 1.2rem;
+            height: 1.2rem;
+            border-width: 0.15em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container dashboard-container">
+        <!-- Header -->
+        <div class="text-center mb-5">
+            <h1 class="header-logo">
+                <i class="bi bi-shield-lock-fill"></i> AEGIS RECON
+            </h1>
+            <p class="text-white fs-5 fw-light">Advanced Security Reconnaissance Platform</p>
+        </div>
+
+        <!-- Scan Form -->
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-radar"></i> Start Security Scan
+                    </div>
+                    <div class="card-body p-4">
+                        <form id="scanForm">
+                            <div class="mb-4">
+                                <label for="domainInput" class="form-label fw-semibold">Target Domain or IP Address</label>
+                                <input type="text" class="form-control form-control-lg" id="domainInput" 
+                                       placeholder="example.com or 192.168.1.1" required>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> Enter a domain or IP you have permission to scan
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-lg w-100" id="startScanBtn">
+                                <i class="bi bi-play-circle-fill"></i> Start Comprehensive Scan
+                            </button>
+                        </form>
+                        
+                        <div id="alertContainer" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scan Status Section -->
+        <div id="statusSection" class="hidden">
+            <div class="row">
+                <div class="col-lg-10 mx-auto">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-clock-history"></i> Scan Progress
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <strong class="text-muted">Job ID:</strong><br>
+                                    <code class="fs-6" id="jobIdDisplay"></code>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong class="text-muted">Target:</strong><br>
+                                    <span class="fs-6 fw-semibold" id="targetDisplay"></span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <strong class="text-muted">Status:</strong><br>
+                                <span id="statusDisplay"></span>
+                            </div>
+                            <div class="progress mb-3" style="height: 12px;">
+                                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div class="text-muted small" id="statusMessage">
+                                <i class="bi bi-hourglass-split"></i> Initializing scan...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden">
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon text-primary">
+                            <i class="bi bi-diagram-3-fill"></i>
+                        </div>
+                        <div class="stat-number" id="statSubdomains">0</div>
+                        <div class="stat-label">Subdomains</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon text-success">
+                            <i class="bi bi-hdd-network-fill"></i>
+                        </div>
+                        <div class="stat-number" id="statHosts">0</div>
+                        <div class="stat-label">Hosts Scanned</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon text-warning">
+                            <i class="bi bi-bug-fill"></i>
+                        </div>
+                        <div class="stat-number" id="statVulns">0</div>
+                        <div class="stat-label">Vulnerabilities</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon text-info">
+                            <i class="bi bi-envelope-fill"></i>
+                        </div>
+                        <div class="stat-number" id="statEmails">0</div>
+                        <div class="stat-label">Emails Found</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🔥 STUNNING VISUALIZATIONS SECTION 🔥 -->
+            <div id="visualizationsSection" style="display:none;">
+                <!-- Animated Network Topology -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card" style="background: linear-gradient(135deg, #0f0f19 0%, #1a1a2e 100%); border: 2px solid #667eea;">
+                            <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-diagram-3"></i> 🌐 Network Topology
+                                    <span class="badge bg-light text-dark ms-2" style="font-size: 0.7rem;">LIVE</span>
+                                </h5>
+                                <small class="text-white-50">Real-time visualization of discovered network connections</small>
+                            </div>
+                            <div class="card-body p-4" id="viz-network-topology" style="min-height: 400px; background: #0f0f19; display: flex; align-items: center; justify-content: center;">
+                                <div style="width: 100%; max-width: 600px;">
+                                    <object data="assets/network_animated.svg" type="image/svg+xml" style="width: 100%; height: auto; filter: drop-shadow(0 0 20px rgba(102, 126, 234, 0.3));"></object>
+                                </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Risk Gauge and Vulnerability Chart -->
+                <div class="row mb-4">
+                    <!-- Risk Score Gauge -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card" style="background: linear-gradient(135deg, #0f0f19 0%, #1a1a2e 100%); border: 2px solid #10b981;">
+                            <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none;">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-speedometer2"></i> 📊 Security Score
+                                    <span class="badge bg-light text-dark ms-2" style="font-size: 0.7rem;">LIVE</span>
+                                </h5>
+                                <small class="text-white-50">Real-time security posture assessment</small>
+                            </div>
+                            <div class="card-body" id="viz-risk-gauge" style="min-height: 400px; background: #0f0f19;">
+                                <div class="text-center p-5">
+                                    <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-3 text-white">Calculating security score...</p>
+                                    <p class="text-white-50 small">Analyzing vulnerabilities and security posture</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vulnerability Distribution -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card" style="background: linear-gradient(135deg, #0f0f19 0%, #1a1a2e 100%); border: 2px solid #ef4444;">
+                            <div class="card-header" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none;">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-bug-fill"></i> 🐛 Vulnerability Heatmap
+                                    <span class="badge bg-light text-dark ms-2" style="font-size: 0.7rem;">CRITICAL</span>
+                                </h5>
+                                <small class="text-white-50">Distribution of security weaknesses</small>
+                            </div>
+                            <div class="card-body" id="viz-vulnerability-chart" style="min-height: 400px; background: #0f0f19;">
+                                <div class="text-center p-5">
+                                    <div class="spinner-border text-danger" role="status" style="width: 3rem; height: 3rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-3 text-white">Analyzing vulnerability distribution...</p>
+                                    <p class="text-white-50 small">Processing security findings</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OSINT Findings -->
+            <div id="osintSection" class="hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-search"></i> OSINT Intelligence
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <h6 class="fw-semibold mb-3">
+                                    <i class="bi bi-envelope-at"></i> Discovered Emails
+                                </h6>
+                                <div id="emailsList"></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <h6 class="fw-semibold mb-3">
+                                    <i class="bi bi-hdd-network"></i> Additional Hosts
+                                </h6>
+                                <div id="hostsList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Technology Stack -->
+            <div id="technologySection" class="hidden">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-stack"></i> Technology Stack Detected
+                    </div>
+                    <div class="card-body">
+                        <div id="technologyContent"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hosts & Vulnerabilities -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-shield-exclamation"></i> Detailed Findings
+                </div>
+                <div class="card-body">
+                    <div id="hostsContent"></div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="text-center mt-4">
+                <button class="btn btn-primary btn-lg" id="newScanBtn">
+                    <i class="bi bi-arrow-repeat"></i> Start New Scan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/dashboard_enhanced.js"></script>
+</body>
+</html>

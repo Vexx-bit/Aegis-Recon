@@ -4,8 +4,9 @@
  */
 
 // Configuration
-const API_BASE_URL = '../backend/api.php';
-const API_KEY = ''; // TODO: Securely inject this from backend or .env
+const API_BASE_URL = window.AEGIS_CONFIG?.apiBaseUrl || '../backend/api.php';
+const API_KEY = window.AEGIS_CONFIG?.apiKey || ''; // Securely injected from backend
+
 
 const POLL_INTERVAL = 3000; // 3 seconds
 
