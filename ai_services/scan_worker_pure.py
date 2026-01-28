@@ -228,8 +228,33 @@ class PureScanner:
                         summary['vulners_cves'] = cves
                         self.results['security_score'] -= (len(cves) * 10)
 
+            # 2. Offline Intelligence (Fallback)
+            if not summary.get('vulners_cves'):
+                offline_cves = self.check_offline_db(server)
+                if offline_cves:
+                    summary['vulners_cves'] = offline_cves
+                    self.results['security_score'] -= (len(offline_cves) * 15)
+
         except: pass
         return summary
+
+    def check_offline_db(self, banner: str) -> List[Dict]:
+        """Local fallback database for common vulnerable services"""
+        if not banner: return []
+        banner = banner.lower()
+        cves = []
+        
+        # OFFLINE VULN LOGIC
+        if 'nginx/1.19' in banner or 'nginx/1.18' in banner:
+            cves.append({"id": "CVE-2021-23017", "title": "Nginx DNS Resolver Off-by-One Heap Write", "score": 9.8, "link": "https://nvd.nist.gov/vuln/detail/CVE-2021-23017"})
+        
+        if 'apache/2.4.49' in banner:
+             cves.append({"id": "CVE-2021-41773", "title": "Apache Path Traversal (RCE)", "score": 10.0, "link": "https://nvd.nist.gov/vuln/detail/CVE-2021-41773"})
+             
+        if 'php/5.' in banner:
+            cves.append({"id": "EOL-PHP5", "title": "PHP 5.x is End of Life (Critical Risk)", "score": 10.0, "link": "https://www.php.net/eol.php"})
+            
+        return cves
 
     def run(self):
         try:
