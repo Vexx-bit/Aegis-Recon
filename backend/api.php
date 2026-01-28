@@ -151,10 +151,10 @@ function checkConsent($db, $userId, $domain) {
  * Execute Python scan worker asynchronously
  */
 function executeScanAsync($domain, $jobId, $useMock = false) {
-    // Use enhanced worker for better results
-    $pythonScript = realpath(__DIR__ . '/../ai_services/scan_worker_enhanced.py');
+    // Use Enhanced Pure Python Worker (Zero Dependency)
+    $pythonScript = realpath(__DIR__ . '/../ai_services/scan_worker_pure.py');
     
-    // Fallback to original worker if enhanced not found
+    // Fallback
     if (!file_exists($pythonScript)) {
         $pythonScript = realpath(__DIR__ . '/../ai_services/scan_worker.py');
     }
