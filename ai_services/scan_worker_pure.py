@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-Aegis Recon - "Pure" Python Scanner
-Zero external binary dependencies (No Nmap, No Ruby, No Perl).
-Relying on socket calls, HTTP headers, and public APIs.
+Aegis Recon - "Pure" Python Scanner (Pro Edition)
+Integrates:
+- Pure Python Port Scanning (Socket)
+- crt.sh (Subdomains)
+- IPInfo.io (Geolocation)
+- Google Safe Browsing (Reputation)
+- Vulners (CVE Search)
+- Database Status Updates (Fixes "Forever Loading" bug)
 """
 
 import sys
@@ -12,13 +17,21 @@ import logging
 import socket
 import requests
 import concurrent.futures
-import re
+import mysql.connector
 from datetime import datetime
-from urllib.parse import urlparse
 from typing import Dict, List, Any
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backend', 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(os.path.join(LOG_DIR, 'scan_debug.log'))
+    ]
+)
 logger = logging.getLogger(__name__)
 
 class PureScanner:
@@ -29,179 +42,228 @@ class PureScanner:
             'job_id': job_id,
             'target': target,
             'timestamp': datetime.utcnow().isoformat() + 'Z',
-            'phases': {}
+            'phases': {},
+            'security_score': 100
         }
         self.session = requests.Session()
-        self.session.headers.update({'User-Agent': 'Mozilla/5.0 (Security-Research)'})
+        self.session.headers.update({'User-Agent': 'AegisRecon/1.0 (Security-Research)'})
+        
+        # Load Env (Primitive)
+        self.load_env()
+
+    def load_env(self):
+        """Manually load .env since we want zero dependencies like python-dotenv"""
+        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+        if os.path.exists(env_path):
+            with open(env_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if '=' in line and not line.startswith('#'):
+                        k, v = line.split('=', 1)
+                        os.environ[k] = v.strip('"').strip("'")
+
+    def get_db_connection(self):
+        return mysql.connector.connect(
+            host=os.getenv('DB_HOST', 'localhost'),
+            user=os.getenv('DB_USER', 'root'),
+            password=os.getenv('DB_PASS', ''),
+            database=os.getenv('DB_NAME', 'aegis_recon')
+        )
+
+    def update_status(self, status: str, message: str = ""):
+        """updates the database status so the frontend stops loading"""
+        try:
+            conn = self.get_db_connection()
+            cursor = conn.cursor()
+            
+            # Update status
+            sql = "UPDATE scans SET status = %s WHERE job_id = %s"
+            cursor.execute(sql, (status, self.job_id))
+            
+            # If done, save results too
+            if status == 'done':
+                results_json = json.dumps(self.results)
+                sql_res = "UPDATE scans SET results = %s, finished_at = NOW() WHERE job_id = %s"
+                cursor.execute(sql_res, (results_json, self.job_id))
+                
+            conn.commit()
+            conn.close()
+            logger.info(f"DB Status updated to: {status}")
+        except Exception as e:
+            logger.error(f"Failed to update DB status: {e}")
 
     # -------------------------------------------------------------------------
-    # Phase 1: Subdomain Enumeration (crt.sh API) - Replaces Sublist3r
+    # API INTEGRATIONS
     # -------------------------------------------------------------------------
+    
+    def check_ipinfo(self, ip: str) -> Dict:
+        """Get location and ASN info"""
+        token = os.getenv('IPINFO_TOKEN')
+        if not token: return {}
+        
+        try:
+            url = f"https://ipinfo.io/{ip}?token={token}"
+            res = self.session.get(url, timeout=5).json()
+            return {
+                "country": res.get("country"),
+                "city": res.get("city"),
+                "org": res.get("org"),
+                "loc": res.get("loc")
+            }
+        except:
+            return {}
+
+    def check_safebrowsing(self, domain: str) -> Dict:
+        """Check Google Safe Browsing"""
+        key = os.getenv('GOOGLE_SAFE_KEY')
+        if not key: return {}
+        
+        try:
+            url = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={key}"
+            payload = {
+                "client": {"clientId": "aegis-recon", "clientVersion": "1.0.0"},
+                "threatInfo": {
+                    "threatTypes": ["MALWARE", "SOCIAL_ENGINEERING"],
+                    "platformTypes": ["ANY_PLATFORM"],
+                    "threatEntryTypes": ["URL"],
+                    "threatEntries": [{"url": f"http://{domain}"}, {"url": f"https://{domain}"}]
+                }
+            }
+            res = self.session.post(url, json=payload, timeout=5).json()
+            return {"safe": False if res else True, "matches": res}
+        except Exception as e:
+            logger.error(f"SafeBrowsing Error: {e}")
+            return {}
+
+    def search_vulners(self, software: str, version: str) -> List[Dict]:
+        """Search Vulners for CVEs"""
+        key = os.getenv('VULNERS_API_KEY')
+        if not key or not software or not version: return []
+        
+        try:
+            # Simple free text search (e.g., "nginx 1.18.0")
+            query = f"{software} {version}"
+            url = "https://vulners.com/api/v3/search/lucene/"
+            payload = {
+                "query": query,
+                "apiKey": key,
+                "limit": 3
+            }
+            res = self.session.post(url, json=payload, timeout=5).json()
+            data = res.get('data', {}).get('search', [])
+            
+            cves = []
+            for item in data:
+                cves.append({
+                    "id": item.get('id'),
+                    "title": item.get('title'),
+                    "score": item.get('cvss', {}).get('score', 0),
+                    "link": item.get('href')
+                })
+            return cves
+        except Exception as e:
+            logger.error(f"Vulners Error: {e}")
+            return []
+
+    # -------------------------------------------------------------------------
+    # CORE SCANNERS
+    # -------------------------------------------------------------------------
+
     def scan_subdomains(self) -> List[str]:
         logger.info("Phase 1: Querying crt.sh for subdomains...")
         url = f"https://crt.sh/?q=%.{self.target}&output=json"
-        
         try:
-            response = self.session.get(url, timeout=20)
+            response = self.session.get(url, timeout=10) # 10s timeout
             if response.status_code == 200:
                 data = response.json()
-                # Extract and clean subdomains
                 subs = set()
                 for entry in data:
                     name_value = entry.get('name_value', '')
                     for sub in name_value.split('\n'):
                         if self.target in sub and '*' not in sub:
                             subs.add(sub.lower())
-                
-                results = list(subs)
-                logger.info(f"crt.sh found {len(results)} subdomains")
-                return results[:50] # Limit to top 50 to save time
-        except Exception as e:
-            logger.error(f"CRT.sh API failed: {e}")
-            
-        return [self.target] # Fallback to target only
-
-    # -------------------------------------------------------------------------
-    # Phase 2: Port Scanning (Python Socket) - Replaces Nmap
-    # -------------------------------------------------------------------------
-    def check_port(self, host: str, port: int) -> int:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(1.0) # Fast timeout
-                if s.connect_ex((host, port)) == 0:
-                    return port
+                return list(subs)[:50]
         except:
             pass
-        return None
+        return [self.target]
 
     def scan_ports(self, host: str) -> List[Dict]:
-        logger.info(f"Phase 2: Scanning ports for {host}")
-        # Top 20 Common Ports
-        ports_to_scan = [21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 993, 995, 3306, 3389, 5900, 8080, 8443]
+        ports_to_scan = [21, 22, 53, 80, 443, 3306, 8080]
         open_ports = []
         
+        def check(p):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.5)
+                    if s.connect_ex((host, p)) == 0:
+                        return p
+            except: pass
+            return None
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-            future_to_port = {executor.submit(self.check_port, host, port): port for port in ports_to_scan}
-            for future in concurrent.futures.as_completed(future_to_port):
-                port = future.result()
+            for port in executor.map(check, ports_to_scan):
                 if port:
-                    service_name = socket.getservbyport(port) if port else "unknown"
-                    open_ports.append({
-                        "port": port,
-                        "state": "open",
-                        "service": service_name,
-                        "version": "" # Passive scan can't easily get version without banners
-                    })
-        
+                    open_ports.append({"port": port, "state": "open", "service": socket.getservbyport(port, 'tcp')})
         return open_ports
 
-    # -------------------------------------------------------------------------
-    # Phase 3: Tech Detection (Headers & Source) - Replaces WhatWeb
-    # -------------------------------------------------------------------------
-    def detect_tech(self, host: str) -> Dict[str, Any]:
-        logger.info(f"Phase 3: Detecting technologies on {host}")
-        summary = {
-            "web_servers": [],
-            "cms": [],
-            "security": [],
-            "languages": []
-        }
-        
-        protocols = ['https', 'http']
-        for proto in protocols:
-            try:
-                target_url = f"{proto}://{host}"
-                resp = self.session.get(target_url, timeout=5)
-                
-                # Check Headers
-                server = resp.headers.get('Server')
-                if server: summary['web_servers'].append(server)
-                
-                powered_by = resp.headers.get('X-Powered-By')
-                if powered_by: summary['languages'].append(powered_by)
-                
-                # Simple Body Checks (Naive Wappalyzer)
-                html = resp.text.lower()
-                if 'wp-content' in html: summary['cms'].append("WordPress")
-                if 'drupal' in html: summary['cms'].append("Drupal")
-                if 'laravel' in html: summary['languages'].append("Laravel (PHP)")
-                if 'react' in html: summary['languages'].append("React")
-                if 'bootstrap' in html: summary['web_servers'].append("Bootstrap UI")
-                
-                # Check Security Headers
-                if 'strict-transport-security' in resp.headers: summary['security'].append("HSTS Enabled")
-                else: summary['security'].append("Missing HSTS")
-                
-                if 'x-frame-options' not in resp.headers: summary['security'].append("Missing Clickjack Protection")
-                
-                break # If successful, stop trying
-            except:
-                continue
-                
-        return {"summary": summary}
-        
-    def run(self):
-        # 1. Subdomains
-        subdomains = self.scan_subdomains()
-        self.results['phases']['subdomains'] = subdomains
-        
-        # 2. Host Analysis
-        valid_hosts = []
-        hosts_data = []
-        
-        # Only scan first 5 subdomains to be fast/demo-friendly
-        for host in subdomains[:5]: 
-            host_info = {
-                'host': host,
-                'ports': [],
-                'technologies': {},
-                'vulnerabilities': []
-            }
+    def detect_tech(self, host: str) -> Dict:
+        summary = {"web_servers": [], "cms": [], "security": []}
+        try:
+            resp = self.session.get(f"http://{host}", timeout=3)
             
-            # Port Scan
-            ports = self.scan_ports(host)
-            host_info['ports'] = ports
+            # Extract headers
+            server = resp.headers.get('Server')
+            if server: summary['web_servers'].append(server)
             
-            if ports: # If host is alive
-                # Tech Detect
-                host_info['technologies'] = self.detect_tech(host)
-                
-                # Simple Vuln Logic (e.g. Missing Headers)
-                sec_issues = host_info['technologies']['summary'].get('security', [])
-                for issue in sec_issues:
-                    if "Missing" in issue:
-                        host_info['vulnerabilities'].append({
-                            "id": "HEADER_MISSING",
-                            "msg": f"Security Header Issue: {issue}",
-                            "severity": "Low"
-                        })
+            # Simple Technology checks
+            html = resp.text.lower()
+            if 'wp-' in html: summary['cms'].append("WordPress")
             
-            hosts_data.append(host_info)
-            
-        self.results['phases']['hosts'] = hosts_data
-        
-        # Metadata
-        self.results['metadata'] = {
-            'total_subdomains': len(subdomains),
-            'total_hosts_scanned': len(hosts_data),
-            'total_vulnerabilities': sum(len(h['vulnerabilities']) for h in hosts_data),
-            'scan_duration': 'N/A'
-        }
-        
-        return self.results
+            # Vulners Check if software found
+            if server:
+                parts = server.split('/')
+                if len(parts) == 2:
+                    cves = self.search_vulners(parts[0], parts[1])
+                    if cves:
+                        summary['vulners_cves'] = cves
+                        self.results['security_score'] -= (len(cves) * 10)
 
-    def save_results(self):
-        temp_dir = os.environ.get('TEMP', '/tmp')
-        output_file = os.path.join(temp_dir, f"results-enhanced-{self.job_id}.json")
-        
-        with open(output_file, 'w') as f:
-            json.dump(self.results, f, indent=2)
+        except: pass
+        return summary
+
+    def run(self):
+        try:
+            self.update_status('running')
             
-        print(output_file) # For PHP to read
-        
-        # Database Update Mock (Since we are pure python, we assume the caller handles DB or we use basic SQL)
-        # In a real deployed pure script, we'd add mysql-connector here.
-        # For now, we print the path successfully.
+            # 1. Location & Safety
+            try:
+                target_ip = socket.gethostbyname(self.target)
+                self.results['phases']['geoip'] = self.check_ipinfo(target_ip)
+                self.results['phases']['safebrowsing'] = self.check_safebrowsing(self.target)
+            except: pass
+
+            # 2. Subdomains
+            subdomains = self.scan_subdomains()
+            self.results['phases']['subdomains'] = subdomains
+            
+            # 3. Hosts
+            hosts_data = []
+            for host in subdomains[:3]: # Limit to 3 for speed
+                host_info = {
+                    'host': host,
+                    'ports': self.scan_ports(host),
+                    'technologies': self.detect_tech(host)
+                }
+                hosts_data.append(host_info)
+            
+            self.results['phases']['hosts'] = hosts_data
+            
+            # Done
+            self.update_status('done')
+            
+        except Exception as e:
+            logger.error(f"Global Scan Failure: {e}")
+            self.update_status('failed')
 
 if __name__ == "__main__":
     import argparse
@@ -212,4 +274,3 @@ if __name__ == "__main__":
     
     scanner = PureScanner(args.target, args.job_id)
     scanner.run()
-    scanner.save_results()
