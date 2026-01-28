@@ -819,8 +819,10 @@ function displayTechnologies(hosts) {
     let html = '';
     
     hosts.forEach(hostData => {
-        if (hostData.technologies && hostData.technologies.summary) {
-            const tech = hostData.technologies.summary;
+        // Support both old (technologies.summary) and new (technologies) structure
+        let tech = hostData.technologies?.summary || hostData.technologies;
+        
+        if (tech && (Object.keys(tech).length > 0)) {
             hastech = true;
             
             html += `<div class="host-card">
@@ -828,71 +830,22 @@ function displayTechnologies(hosts) {
                     <i class="bi bi-globe"></i> ${hostData.host}
                 </h6>`;
             
-            // CMS
-            if (tech.cms && tech.cms.length > 0) {
-                html += `<div class="mb-2">
-                    <strong class="text-muted small">CMS:</strong><br>
-                    ${tech.cms.map(t => `<span class="tech-badge cms">${t}</span>`).join('')}
+            // Helper to render badges
+            const renderBadges = (list, type) => {
+                if (!list || list.length === 0) return '';
+                return `<div class="mb-2">
+                    <strong class="text-muted small">${type}:</strong><br>
+                    ${list.map(t => `<span class="tech-badge ${type.toLowerCase()}">${t}</span>`).join('')}
                 </div>`;
-            }
+            };
+
+            html += renderBadges(tech.cms, 'CMS');
+            html += renderBadges(tech.web_servers, 'Server');
+            html += renderBadges(tech.programming_languages || tech.languages, 'Language');
+            html += renderBadges(tech.frameworks, 'Framework');
+            html += renderBadges(tech.security, 'Security');
             
-            // Web Servers
-            if (tech.web_servers && tech.web_servers.length > 0) {
-                html += `<div class="mb-2">
-                    <strong class="text-muted small">Web Server:</strong><br>
-                    ${tech.web_servers.map(t => `<span class="tech-badge server">${t}</span>`).join('')}
-                </div>`;
-            }
-            
-            // Programming Languages
-            if (tech.programming_languages && tech.programming_languages.length > 0) {
-                html += `<div class="mb-2">
-                    <strong class="text-muted small">Languages:</strong><br>
-                    ${tech.programming_languages.map(t => `<span class="tech-badge language">${t}</span>`).join('')}
-                </div>`;
-            }
-            
-            // Frameworks
-            if (tech.frameworks && tech.frameworks.length > 0) {
-                html += `<div class="mb-2">
-                    <strong class="text-muted small">Frameworks:</strong><br>
-                    ${tech.frameworks.map(t => `<span class="tech-badge framework">${t}</span>`).join('')}
-                </div>`;
-            }
-            
-            // JavaScript Libraries
-            if (tech.javascript_libraries && tech.javascript_libraries.length > 0) {
-                html += `<div class="mb-2">
-                    <strong class="text-muted small">JavaScript:</strong><br>
-                    ${tech.javascript_libraries.map(t => `<span class="tech-badge">${t}</span>`).join('')}
-                </div>`;
-            }
-            
-            // Other Technologies (catch-all for uncategorized items)
-            if (tech.other && tech.other.length > 0) {
-                html += `<div class="mb-2">
-                    <strong class="text-muted small">Additional Info:</strong><br>
-                    ${tech.other.map(t => `<span class="tech-badge">${t}</span>`).join('')}
-                </div>`;
-            }
-            
-            // Analytics
-            if (tech.analytics && tech.analytics.length > 0) {
-                html += `<div class="mb-2">
-                    <strong class="text-muted small">Analytics:</strong><br>
-                    ${tech.analytics.map(t => `<span class="tech-badge">${t}</span>`).join('')}
-                </div>`;
-            }
-            
-            // Security
-            if (tech.security && tech.security.length > 0) {
-                html += `<div class="mb-2">
-                    <strong class="text-muted small">Security:</strong><br>
-                    ${tech.security.map(t => `<span class="tech-badge security">${t}</span>`).join('')}
-                </div>`;
-            }
-            
-            // Outdated technologies warning
+            // Outdated technologies warning (Legacy support)
             if (hostData.outdated_technologies && hostData.outdated_technologies.length > 0) {
                 html += `<div class="alert alert-warning mt-3 mb-0">
                     <i class="bi bi-exclamation-triangle-fill"></i> 
@@ -929,8 +882,10 @@ function displayHosts(hosts) {
                 <i class="bi bi-hdd-network-fill text-primary"></i> ${hostData.host}
             </h5>`;
         
-        // Open Ports
-        if (hostData.nmap && hostData.nmap.ports && hostData.nmap.ports.length > 0) {
+        // Open Ports (Handle Nmap nesting OR direct list)
+        const ports = hostData.ports || hostData.nmap?.ports || [];
+        
+        if (ports.length > 0) {
             html += `<div class="mb-3">
                 <h6 class="fw-semibold"><i class="bi bi-door-open"></i> Open Ports</h6>
                 <div class="table-responsive">
@@ -940,16 +895,14 @@ function displayHosts(hosts) {
                                 <th>Port</th>
                                 <th>State</th>
                                 <th>Service</th>
-                                <th>Version</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${hostData.nmap.ports.map(port => `
+                            ${ports.map(port => `
                                 <tr>
                                     <td><strong>${port.port}</strong></td>
-                                    <td><span class="badge bg-success">${port.state}</span></td>
+                                    <td><span class="badge bg-success">${port.state || 'open'}</span></td>
                                     <td>${port.service || 'unknown'}</td>
-                                    <td>${port.version || '-'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -958,27 +911,37 @@ function displayHosts(hosts) {
             </div>`;
         }
         
-        // Vulnerabilities
-        if (hostData.vulnerabilities && hostData.vulnerabilities.length > 0) {
+        // Vulnerabilities (Handle legacy separate list OR new Tech/Vulners issues)
+        let vulns = hostData.vulnerabilities || [];
+        if (hostData.technologies?.vulners_cves) {
+             hostData.technologies.vulners_cves.forEach(cve => {
+                 vulns.push({
+                     title: cve.id + ': ' + cve.title,
+                     url: cve.link,
+                     severity: 'high'
+                 });
+             });
+        }
+        
+        if (vulns.length > 0) {
             html += `<div class="mb-3">
                 <h6 class="fw-semibold text-danger">
-                    <i class="bi bi-bug-fill"></i> Vulnerabilities (${hostData.vulnerabilities.length})
+                    <i class="bi bi-bug-fill"></i> Vulnerabilities (${vulns.length})
                 </h6>
-                ${hostData.vulnerabilities.map(vuln => `
+                ${vulns.map(vuln => `
                     <div class="vuln-item medium">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <strong>${vuln.msg || vuln.title || 'Vulnerability'}</strong>
-                                ${vuln.url ? `<br><small class="text-muted">${vuln.url}</small>` : ''}
+                                ${vuln.url ? `<br><small class="text-muted"><a href="${vuln.url}" target="_blank">${vuln.url}</a></small>` : ''}
                             </div>
-                            ${vuln.osvdb ? `<span class="badge bg-warning">OSVDB: ${vuln.osvdb}</span>` : ''}
                         </div>
                     </div>
                 `).join('')}
             </div>`;
         } else {
             html += `<div class="alert alert-success mb-0">
-                <i class="bi bi-shield-check"></i> No vulnerabilities detected
+                <i class="bi bi-shield-check"></i> No critical vulnerabilities detected
             </div>`;
         }
         
@@ -987,6 +950,7 @@ function displayHosts(hosts) {
     
     hostsContent.innerHTML = html || '<p class="text-muted">No host data available</p>';
 }
+
 
 /**
  * Reset dashboard for new scan
