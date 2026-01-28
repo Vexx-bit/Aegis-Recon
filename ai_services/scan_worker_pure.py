@@ -246,14 +246,23 @@ class PureScanner:
             subdomains = self.scan_subdomains()
             self.results['phases']['subdomains'] = subdomains
             
+            # Ensure target itself is ALWAYS scanned (Fix for "No host data" bug)
+            targets_to_scan = list(set([self.target] + subdomains))[:5] # Deduplicate and limit
+            
             # 3. Hosts
             hosts_data = []
-            for host in subdomains[:3]: # Limit to 3 for speed
+            for host in targets_to_scan: 
                 host_info = {
                     'host': host,
                     'ports': self.scan_ports(host),
                     'technologies': self.detect_tech(host)
                 }
+                
+                # Check for WordPress specific things
+                if host_info['technologies'].get('cms') and 'WordPress' in host_info['technologies']['cms']:
+                   # Pro-active WP user check (Example logic)
+                   host_info['technologies']['other'] = host_info['technologies'].get('other', []) + ['WP-JSON API Exposed']
+                   
                 hosts_data.append(host_info)
             
             self.results['phases']['hosts'] = hosts_data

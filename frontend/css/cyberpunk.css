@@ -1,0 +1,230 @@
+:root {
+  --bg-dark: #050510;
+  --bg-card: #0a0a1f;
+  --primary: #00f0ff;
+  --secondary: #7000ff;
+  --success: #00ffa3;
+  --danger: #ff0055;
+  --warning: #ffbe00;
+  --text-main: #e0e0e0;
+  --text-muted: #8080a0;
+  --glass: rgba(10, 10, 31, 0.7);
+  --border: rgba(0, 240, 255, 0.2);
+  --glow-primary: 0 0 10px rgba(0, 240, 255, 0.5);
+  --glow-danger: 0 0 10px rgba(255, 0, 85, 0.5);
+}
+
+body {
+  background-color: var(--bg-dark);
+  background-image:
+    radial-gradient(circle at 50% 0%, #1a1a40 0%, transparent 70%),
+    linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    40px 40px,
+    40px 40px;
+  color: var(--text-main);
+  font-family: "Rajdhani", "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.header-logo {
+  text-shadow: var(--glow-primary);
+  color: var(--primary);
+  font-size: 3.5rem;
+  margin-bottom: 0;
+}
+
+.header-subtitle {
+  color: var(--primary);
+  opacity: 0.7;
+  font-size: 1.2rem;
+  letter-spacing: 4px;
+}
+
+/* CARDS */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.card-header {
+  background: rgba(0, 240, 255, 0.05);
+  border-bottom: 1px solid var(--border);
+  color: var(--primary);
+  font-size: 1.1rem;
+  padding: 1.5rem;
+}
+
+/* FORMS */
+.form-control {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  color: var(--primary);
+  font-family: "Courier New", monospace;
+}
+
+.form-control:focus {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: var(--primary);
+  box-shadow: var(--glow-primary);
+  color: white;
+}
+
+.btn-primary {
+  background: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: bold;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background: var(--primary);
+  color: black;
+  box-shadow: var(--glow-primary);
+  transform: translateY(-2px);
+}
+
+/* STATS */
+.stat-card {
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--primary);
+  box-shadow: var(--glow-primary);
+}
+
+.stat-number {
+  font-family: "Courier New", monospace;
+  font-size: 3rem;
+  color: white;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.stat-label {
+  color: var(--primary);
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+}
+
+/* BADGES */
+.status-badge {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0.25rem 0.75rem;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+}
+
+.tech-badge {
+  background: rgba(112, 0, 255, 0.1);
+  border: 1px solid var(--secondary);
+  color: #b388ff;
+  border-radius: 2px;
+  font-family: "Courier New", monospace;
+}
+
+.tech-badge.cms {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.tech-badge.security {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ALERTS */
+.alert-warning {
+  background: rgba(255, 190, 0, 0.1);
+  border: 1px solid var(--warning);
+  color: var(--warning);
+}
+
+.alert-danger {
+  background: rgba(255, 0, 85, 0.1);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+/* PROGRESS */
+.progress {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  height: 4px;
+}
+
+.progress-bar {
+  background: var(--primary);
+  box-shadow: var(--glow-primary);
+}
+
+/* TERMINAL OUTPUT LOOK */
+#hostsContent,
+.host-card {
+  font-family: "Courier New", monospace;
+}
+
+.host-card {
+  border-left: 3px solid var(--secondary);
+}
+
+/* ANIMATIONS */
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.scan-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    transparent 95%,
+    rgba(0, 240, 255, 0.1) 100%
+  );
+  pointer-events: none;
+  z-index: 9999;
+  animation: scanline 8s linear infinite;
+  opacity: 0.3;
+}
