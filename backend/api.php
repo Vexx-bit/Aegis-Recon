@@ -459,6 +459,93 @@ function handleResult($db) {
     }
 }
 
+/**
+ * Endpoint: Run AI Analysis
+ */
+function handleAnalyze($db) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        sendError('Method not allowed. Use POST.', 405, 'METHOD_NOT_ALLOWED');
+    }
+    
+    $input = json_decode(file_get_contents('php://input'), true);
+    $jobId = $input['job_id'] ?? null;
+    
+    if (!$jobId) {
+        sendError('Missing required parameter: job_id', 400, 'MISSING_JOB_ID');
+    }
+    
+    $jobId = preg_replace('/[^a-zA-Z0-9_-]/', '', $jobId);
+    
+    // Check if analysis already exists in DB
+    /* 
+    // Future: Add ai_report column to scans table
+    $stmt = $db->prepare("SELECT ai_report FROM scans WHERE job_id = ?"); 
+    ...
+    */
+    
+    // Check for results file
+    $resultsFile = sys_get_temp_dir() . "/results-{$jobId}.json";
+    
+    // If not in temp, try to fetch from DB and write to temp
+    if (!file_exists($resultsFile)) {
+        $stmt = $db->prepare("SELECT results FROM scans WHERE job_id = ?");
+        $stmt->bind_param('s', $jobId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res->num_rows > 0) {
+            $row = $res->fetch_assoc();
+            if (!empty($row['results'])) {
+                file_put_contents($resultsFile, $row['results']);
+            } else {
+                sendError('No results found to analyze', 404, 'RESULTS_NOT_FOUND');
+            }
+        } else {
+            sendError('Job not found', 404, 'JOB_NOT_FOUND');
+        }
+    }
+    
+    // Execute Python Analyst
+    $pythonScript = realpath(__DIR__ . '/../ai_services/ai_analyst.py');
+    if (!file_exists($pythonScript)) {
+        sendError('AI Analyst service not found', 500, 'SERVICE_NOT_FOUND');
+    }
+
+    $pythonExe = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? 'python' : 'python3';
+    
+    $cmd = sprintf(
+        '%s %s %s %s 2>&1',
+        $pythonExe,
+        escapeshellarg($pythonScript),
+        escapeshellarg($jobId),
+        escapeshellarg($resultsFile)
+    );
+    
+    exec($cmd, $output, $returnCode);
+    
+    if ($returnCode !== 0) {
+        error_log("AI Analysis Failed: " . implode("\n", $output));
+        sendError('AI Analysis failed: ' . end($output), 500, 'ANALYSIS_FAILED');
+    }
+    
+    // Success - read the output JSON path
+    // The script prints the path to the JSON output as the last line
+    $jsonOutputPath = end($output);
+    
+    if (file_exists($jsonOutputPath)) {
+        $analysis = json_decode(file_get_contents($jsonOutputPath), true);
+        sendResponse([
+            'success' => true,
+            'job_id' => $jobId,
+            'report' => $analysis['report_markdown'],
+            'model' => $analysis['model'],
+            'timestamp' => date('c')
+        ]);
+    } else {
+        // Fallback or legacy format
+        sendError('Failed to parse analysis output', 500, 'PARSE_ERROR');
+    }
+}
+
 // ============================================================================
 // MAIN EXECUTION
 // ============================================================================
@@ -491,13 +578,18 @@ try {
             handleResult($db);
             break;
             
+        case 'analyze':
+            handleAnalyze($db);
+            break;
+            
         default:
             sendError(
-                'Invalid action. Valid actions: enqueue, status, result', 
+                'Invalid action. Valid actions: enqueue, status, result, analyze', 
                 400, 
                 'INVALID_ACTION'
             );
     }
+
     
     // Close database connection
     $db->close();

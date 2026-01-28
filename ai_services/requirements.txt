@@ -25,4 +25,6 @@ lxml>=4.9.0
 
 # Optional: For enhanced OSINT features
 # shodan>=1.28.0  # Requires API key
-# censys>=2.1.0   # Requires API key
+# AI Integration
+groq>=0.5.0
+

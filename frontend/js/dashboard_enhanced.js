@@ -681,6 +681,95 @@ function displayResults(results) {
     // Generate visualizations DIRECTLY (no API calls!)
     console.log('Generating visualizations directly...');
     generateVisualizationsDirectly(results);
+    
+    // Inject AI Report Button
+    injectAIButton(results.job_id);
+}
+
+/**
+ * Inject AI Report Button
+ */
+function injectAIButton(jobId) {
+    const container = document.getElementById('resultsHeaderActions') || document.getElementById('resultsSection');
+    if (!container) return;
+    
+    // Check if button already exists
+    if (document.getElementById('aiReportBtn')) return;
+    
+    const btnHtml = `
+        <div id="aiActionContainer" class="text-center my-4">
+            <button id="aiReportBtn" class="btn btn-lg btn-outline-primary" onclick="generateAIReport('${jobId}')">
+                <i class="bi bi-robot"></i> Generate AI Threat Analysis
+            </button>
+            <div id="aiReportContent" class="mt-4 text-start" style="display:none; max-width: 800px; margin: 0 auto;"></div>
+        </div>
+    `;
+    
+    // Insert after statistics or at top of results
+    const statsRow = document.querySelector('.row.g-4.mb-4');
+    if (statsRow) {
+        statsRow.insertAdjacentHTML('afterend', btnHtml);
+    } else {
+        container.insertAdjacentHTML('afterbegin', btnHtml);
+    }
+}
+
+/**
+ * Call API to generate AI report
+ */
+async function generateAIReport(jobId) {
+    const btn = document.getElementById('aiReportBtn');
+    const contentDiv = document.getElementById('aiReportContent');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Analyzing with Llama 3...';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}?action=analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-KEY': API_KEY
+            },
+            body: JSON.stringify({ job_id: jobId })
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Analysis failed');
+        }
+        
+        // Render Markdown Report
+        // Simple Markdown renderer (bold, list, headers)
+        let html = data.report
+            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+            .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+            .replace(/^\- (.*$)/gim, '<li>$1</li>')
+            .replace(/\n/gim, '<br>');
+            
+        contentDiv.innerHTML = `
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-robot"></i> AI Threat Report (${data.model})</h5>
+                </div>
+                <div class="card-body">
+                    ${html}
+                </div>
+            </div>
+        `;
+        contentDiv.style.display = 'block';
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Report Generated';
+        
+    } catch (error) {
+        console.error(error);
+        alert('Failed to generate report: ' + error.message);
+        btn.innerHTML = '<i class="bi bi-robot"></i> Retry Analysis';
+        btn.disabled = false;
+    }
+
 }
 
 /**
