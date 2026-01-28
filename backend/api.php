@@ -168,9 +168,10 @@ function executeScanAsync($domain, $jobId, $useMock = false) {
     $jobIdEscaped = escapeshellarg($jobId);
     
     // Build command
-    $pythonExe = 'python3'; // Use 'python' on Windows if python3 not available
+    $pythonExe = 'python3'; // Linux default
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-        $pythonExe = 'python';
+        // Windows: Use 'py' launcher which is more reliable than 'python' in some setups
+        $pythonExe = 'py';
     }
     
     // Add mock flag if testing with 127.0.0.1
@@ -510,7 +511,9 @@ function handleAnalyze($db) {
         sendError('AI Analyst service not found', 500, 'SERVICE_NOT_FOUND');
     }
 
-    $pythonExe = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? 'python' : 'python3';
+    // Use 'py' on Windows, 'python3' on Linux
+    $pythonExe = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? 'py' : 'python3';
+
     
     $cmd = sprintf(
         '%s %s %s %s 2>&1',
