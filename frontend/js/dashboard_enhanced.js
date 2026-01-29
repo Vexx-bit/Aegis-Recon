@@ -670,39 +670,42 @@ function displayResults(results) {
  * Inject AI Report Button
  */
 function injectAIButton(jobId) {
-    const container = document.getElementById('resultsHeaderActions') || document.getElementById('resultsSection');
+    const container = document.getElementById('resultsHeaderActions');
     if (!container) return;
     
     // Check if button already exists
     if (document.getElementById('aiReportBtn')) return;
     
-    const btnHtml = `
-        <div id="aiActionContainer" class="text-center my-4">
-            <button id="aiReportBtn" class="btn btn-outline-primary w-100" onclick="generateAIReport('${jobId}')">
-                <i class="bi bi-shield-exclamation"></i> Generate Threat Report
-            </button>
-            <div id="aiReportContent" class="mt-4 text-start" style="display:none; max-width: 800px; margin: 0 auto;"></div>
-        </div>
+    // Simple button that opens the modal
+    container.innerHTML = `
+        <button id="aiReportBtn" class="btn btn-primary w-100" onclick="generateAIReport('${jobId}')">
+            <i class="bi bi-shield-exclamation"></i> Generate Threat Report
+        </button>
     `;
-    
-    // Insert after statistics or at top of results
-    const statsRow = document.querySelector('.row.g-4.mb-4');
-    if (statsRow) {
-        statsRow.insertAdjacentHTML('afterend', btnHtml);
-    } else {
-        container.insertAdjacentHTML('afterbegin', btnHtml);
-    }
 }
 
 /**
- * Call API to generate AI report
+ * Call API to generate AI report - Opens in professional modal
  */
+let currentReportData = null; // Store for PDF export
+
 async function generateAIReport(jobId) {
     const btn = document.getElementById('aiReportBtn');
-    const contentDiv = document.getElementById('aiReportContent');
+    const modalBody = document.getElementById('reportModalBody');
+    
+    // Show modal immediately with loading state
+    const reportModal = new bootstrap.Modal(document.getElementById('reportModal'));
+    modalBody.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
+            <p class="mt-3 text-muted">Analyzing security data with AI...</p>
+            <small class="text-muted">This may take a few seconds</small>
+        </div>
+    `;
+    reportModal.show();
     
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Analyzing...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
     
     try {
         const response = await fetch(`${API_BASE_URL}?action=analyze`, {
@@ -720,36 +723,120 @@ async function generateAIReport(jobId) {
             throw new Error(data.error || 'Analysis failed');
         }
         
-        // Render Markdown Report
-        // Simple Markdown renderer (bold, list, headers)
+        // Store for PDF export
+        currentReportData = data;
+        
+        // Render Markdown Report with better formatting
         let html = data.report
-            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-            .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
-            .replace(/^\- (.*$)/gim, '<li>$1</li>')
+            .replace(/####\s*(.*?)(?=\n|$)/gim, '<h4 class="text-primary mt-4 mb-3 border-bottom pb-2">$1</h4>')
+            .replace(/###\s*(.*?)(?=\n|$)/gim, '<h4 class="mt-4 mb-3">$1</h4>')
+            .replace(/##\s*(.*?)(?=\n|$)/gim, '<h3 class="mt-4 mb-3">$1</h3>')
+            .replace(/#\s*(.*?)(?=\n|$)/gim, '<h2 class="mt-4 mb-3">$1</h2>')
+            .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+            .replace(/^\d+\.\s+(.*?)$/gim, '<li class="mb-2">$1</li>')
+            .replace(/^\*\s+(.*?)$/gim, '<li class="mb-1">$1</li>')
+            .replace(/^-\s+(.*?)$/gim, '<li class="mb-1">$1</li>')
+            .replace(/`(.*?)`/gim, '<code class="bg-light px-1 rounded">$1</code>')
+            .replace(/\n\n/gim, '</p><p>')
             .replace(/\n/gim, '<br>');
-            
-        contentDiv.innerHTML = `
-            <div class="card shadow-sm border-primary">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="bi bi-shield-fill-check"></i> Security Threat Report</h5>
+        
+        // Get target from current scan
+        const targetEl = document.getElementById('targetDisplay');
+        const target = targetEl ? targetEl.textContent : 'Unknown Target';
+        const scanDate = new Date().toLocaleDateString('en-US', { 
+            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+        });
+        
+        modalBody.innerHTML = `
+            <div id="reportContent" class="report-printable">
+                <!-- Report Header for PDF -->
+                <div class="text-center mb-4 pb-3 border-bottom">
+                    <h2 class="text-primary mb-1">
+                        <i class="bi bi-shield-fill-check"></i> AEGIS RECON
+                    </h2>
+                    <p class="text-muted mb-0">Security Threat Assessment Report</p>
                 </div>
-                <div class="card-body">
+                
+                <!-- Report Meta -->
+                <div class="row mb-4 bg-light p-3 rounded">
+                    <div class="col-md-6">
+                        <small class="text-muted">TARGET</small>
+                        <div class="fw-bold">${target}</div>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <small class="text-muted">GENERATED</small>
+                        <div class="fw-bold">${scanDate}</div>
+                    </div>
+                </div>
+                
+                <!-- Report Content -->
+                <div class="report-body">
                     ${html}
+                </div>
+                
+                <!-- Footer -->
+                <div class="mt-5 pt-3 border-top text-center text-muted">
+                    <small>Generated by Aegis Recon Security Platform</small>
                 </div>
             </div>
         `;
-        contentDiv.style.display = 'block';
+        
         btn.innerHTML = '<i class="bi bi-check-lg"></i> Report Generated';
+        btn.disabled = false;
         
     } catch (error) {
         console.error(error);
-        alert('Failed to generate report: ' + error.message);
+        modalBody.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> 
+                <strong>Analysis Failed</strong><br>
+                ${error.message}
+            </div>
+            <button class="btn btn-primary" onclick="generateAIReport('${jobId}')">
+                <i class="bi bi-arrow-repeat"></i> Retry
+            </button>
+        `;
         btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Retry';
         btn.disabled = false;
     }
+}
 
+/**
+ * Download report as PDF
+ */
+function downloadReportPDF() {
+    const element = document.getElementById('reportContent');
+    if (!element) {
+        alert('No report to download. Please generate a report first.');
+        return;
+    }
+    
+    const targetEl = document.getElementById('targetDisplay');
+    const target = targetEl ? targetEl.textContent.replace(/[^a-z0-9]/gi, '_') : 'report';
+    const filename = `aegis_recon_${target}_${Date.now()}.pdf`;
+    
+    const opt = {
+        margin: [10, 10, 10, 10],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    
+    // Show loading state
+    const btn = document.getElementById('downloadPdfBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating PDF...';
+    btn.disabled = true;
+    
+    html2pdf().set(opt).from(element).save().then(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }).catch(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        alert('Failed to generate PDF. Please try again.');
+    });
 }
 
 /**
