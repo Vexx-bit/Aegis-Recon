@@ -95,7 +95,7 @@ async function handleScanSubmit(e) {
     
     // Disable form
     startScanBtn.disabled = true;
-    startScanBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Starting scan...';
+    startScanBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Scanning...';
     
     try {
         // Call enqueue endpoint
@@ -140,7 +140,7 @@ async function handleScanSubmit(e) {
         console.error('Error starting scan:', error);
         showAlert('Error: ' + error.message, 'danger');
         startScanBtn.disabled = false;
-        startScanBtn.innerHTML = '<i class="bi bi-play-circle-fill"></i> Start Comprehensive Scan';
+        startScanBtn.innerHTML = '<i class="bi bi-search"></i> Scan';
     }
 }
 
@@ -363,6 +363,10 @@ async function fetchResults(retryCount = 0) {
         
         // Hide inline status bar (scan complete)
         statusSection.classList.add('hidden');
+        
+        // Reset the scan button
+        startScanBtn.disabled = false;
+        startScanBtn.innerHTML = '<i class="bi bi-search"></i> Scan';
         
         // Show "New Scan" button in header
         const newScanBtn = document.getElementById('newScanBtn');
@@ -674,8 +678,8 @@ function injectAIButton(jobId) {
     
     const btnHtml = `
         <div id="aiActionContainer" class="text-center my-4">
-            <button id="aiReportBtn" class="btn btn-lg btn-outline-primary" onclick="generateAIReport('${jobId}')">
-                <i class="bi bi-robot"></i> Generate AI Threat Analysis
+            <button id="aiReportBtn" class="btn btn-outline-primary w-100" onclick="generateAIReport('${jobId}')">
+                <i class="bi bi-shield-exclamation"></i> Generate Threat Report
             </button>
             <div id="aiReportContent" class="mt-4 text-start" style="display:none; max-width: 800px; margin: 0 auto;"></div>
         </div>
@@ -698,7 +702,7 @@ async function generateAIReport(jobId) {
     const contentDiv = document.getElementById('aiReportContent');
     
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Analyzing with Llama 3...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Analyzing...';
     
     try {
         const response = await fetch(`${API_BASE_URL}?action=analyze`, {
@@ -742,7 +746,7 @@ async function generateAIReport(jobId) {
     } catch (error) {
         console.error(error);
         alert('Failed to generate report: ' + error.message);
-        btn.innerHTML = '<i class="bi bi-robot"></i> Retry Analysis';
+        btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Retry';
         btn.disabled = false;
     }
 

@@ -111,7 +111,7 @@ TONE: Professional, urgent but not alarmist. Use Markdown formatting.
                         "content": prompt,
                     }
                 ],
-                model="llama3-70b-8192",
+                model="llama-3.3-70b-versatile",  # Updated from deprecated llama3-70b-8192
                 temperature=0.5,
                 max_tokens=1000,
             )

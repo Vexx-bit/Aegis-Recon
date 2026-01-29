@@ -243,9 +243,9 @@ $apiKey = getenv('API_KEY');
                 <!-- RIGHT: Side Panel -->
                 <div class="d-flex flex-column gap-4">
                     
-                    <!-- OSINT Panel -->
+                    <!-- Email/Identity Panel -->
                     <div class="info-card" id="osintSection">
-                        <h6><i class="bi bi-incognito"></i> OSINT Intelligence</h6>
+                        <h6><i class="bi bi-envelope-at"></i> Exposed Information</h6>
                         <div id="emailsList">
                             <p class="text-muted small mb-0">No data yet</p>
                         </div>
