@@ -230,34 +230,62 @@ class PureScanner:
 
     def detect_tech(self, host: str) -> Dict:
         summary = {"web_servers": [], "cms": [], "security": []}
-        try:
-            resp = self.session.get(f"http://{host}", timeout=3)
-            
-            # Extract headers
-            server = resp.headers.get('Server')
-            if server: summary['web_servers'].append(server)
-            
-            # Simple Technology checks
-            html = resp.text.lower()
-            if 'wp-' in html: summary['cms'].append("WordPress")
-            
-            # Vulners Check if software found
-            if server:
-                parts = server.split('/')
-                if len(parts) == 2:
-                    cves = self.search_vulners(parts[0], parts[1])
-                    if cves:
-                        summary['vulners_cves'] = cves
-                        self.results['security_score'] -= (len(cves) * 10)
+        server = None
+        
+        # Try both HTTP and HTTPS
+        for protocol in ['https', 'http']:
+            try:
+                url = f"{protocol}://{host}"
+                resp = self.session.get(url, timeout=5, allow_redirects=True, verify=False)
+                
+                # Extract Server header
+                if not server:
+                    server = resp.headers.get('Server')
+                    if server:
+                        summary['web_servers'].append(server)
+                        logger.info(f"Detected server: {server}")
+                
+                # X-Powered-By header
+                powered_by = resp.headers.get('X-Powered-By')
+                if powered_by and powered_by not in summary['web_servers']:
+                    summary['web_servers'].append(powered_by)
+                
+                # Simple Technology checks from HTML
+                html = resp.text.lower()
+                if 'wp-content' in html or 'wp-includes' in html:
+                    if 'WordPress' not in summary['cms']:
+                        summary['cms'].append("WordPress")
+                if 'joomla' in html:
+                    if 'Joomla' not in summary['cms']:
+                        summary['cms'].append("Joomla")
+                if 'drupal' in html:
+                    if 'Drupal' not in summary['cms']:
+                        summary['cms'].append("Drupal")
+                        
+                # If we got a server, no need to try the other protocol
+                if server:
+                    break
+                    
+            except Exception as e:
+                logger.debug(f"Tech detection failed for {protocol}://{host}: {e}")
+                continue
+        
+        # Vulners Check if software found
+        if server:
+            parts = server.split('/')
+            if len(parts) >= 2:
+                cves = self.search_vulners(parts[0], parts[1].split()[0])
+                if cves:
+                    summary['vulners_cves'] = cves
+                    self.results['security_score'] -= (len(cves) * 10)
 
-            # 2. Offline Intelligence (Fallback)
-            if not summary.get('vulners_cves'):
-                offline_cves = self.check_offline_db(server)
-                if offline_cves:
-                    summary['vulners_cves'] = offline_cves
-                    self.results['security_score'] -= (len(offline_cves) * 15)
+        # Offline Intelligence (Fallback)
+        if not summary.get('vulners_cves') and server:
+            offline_cves = self.check_offline_db(server)
+            if offline_cves:
+                summary['vulners_cves'] = offline_cves
+                self.results['security_score'] -= (len(offline_cves) * 15)
 
-        except: pass
         return summary
 
     def check_offline_db(self, banner: str) -> List[Dict]:
