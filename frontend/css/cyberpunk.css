@@ -141,57 +141,82 @@ h6 {
   border-radius: 4px;
 }
 
-/* BADGES */
+/* BADGES - High Contrast */
 .status-badge {
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid currentColor;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid var(--primary);
   border-radius: 4px;
   padding: 0.25rem 0.75rem;
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 1px;
+  color: var(--primary);
+  font-weight: bold;
 }
 
 .tech-badge {
-  background: rgba(112, 0, 255, 0.1);
+  background: rgba(112, 0, 255, 0.2);
   border: 1px solid var(--secondary);
-  color: #b388ff;
+  color: #fff !important; /* Force White Text */
   border-radius: 2px;
   font-family: "Courier New", monospace;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
-.tech-badge.cms {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-.tech-badge.security {
-  border-color: var(--danger);
-  color: var(--danger);
+.tech-icon-box {
+    background: rgba(20, 20, 40, 0.8) !important;
+    border: 1px solid #444;
+    color: #fff !important; /* Force White Text */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
 }
 
-/* ALERTS */
-.alert-warning {
-  background: rgba(255, 190, 0, 0.1);
-  border: 1px solid var(--warning);
-  color: var(--warning);
+.tech-icon-box strong {
+    color: var(--primary); /* Highlight value in cyan */
 }
 
-.alert-danger {
-  background: rgba(255, 0, 85, 0.1);
-  border: 1px solid var(--danger);
-  color: var(--danger);
+/* PORTS - High Visibility */
+.port-item {
+    background: rgba(10, 10, 30, 0.9) !important;
+    border: 1px solid var(--border);
+    color: white !important;
 }
 
-/* PROGRESS */
-.progress {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 0;
-  height: 4px;
+.port-number {
+    color: var(--primary) !important;
+    text-shadow: 0 0 5px var(--primary);
 }
 
-.progress-bar {
-  background: var(--primary);
-  box-shadow: var(--glow-primary);
+.port-service {
+    color: #bbb !important; /* Light Grey for service name */
+    font-weight: bold;
+}
+
+/* ALERTS & TEXT VISIBILITY */
+.alert-dark, .text-muted {
+    color: #aaa !important; /* Replace dark grey with light grey */
+}
+
+.alert-info {
+    color: #bfefff !important;
+    background: rgba(0, 100, 150, 0.3) !important; 
+    border-color: var(--primary) !important;
+}
+
+/* STATUS SECTION SPACING */
+#statusSection .card-body {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* Ensure Job ID and Target don't overlap or look dim */
+.text-white-50 {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+h2.display-6, h4 {
+    color: white !important;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
 /* TERMINAL OUTPUT LOOK */
@@ -206,12 +231,8 @@ h6 {
 
 /* ANIMATIONS */
 @keyframes scanline {
-  0% {
-    transform: translateY(-100%);
-  }
-  100% {
-    transform: translateY(100%);
-  }
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
 }
 
 .scan-overlay {
@@ -223,10 +244,10 @@ h6 {
   background: linear-gradient(
     to bottom,
     transparent 95%,
-    rgba(0, 240, 255, 0.1) 100%
+    rgba(0, 240, 255, 0.05) 100%
   );
   pointer-events: none;
   z-index: 9999;
   animation: scanline 8s linear infinite;
-  opacity: 0.3;
+  opacity: 0.2; /* Reduced opacity needed to help reading */
 }
