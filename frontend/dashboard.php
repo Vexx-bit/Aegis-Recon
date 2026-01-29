@@ -7,7 +7,7 @@ $apiKey = getenv('API_KEY');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AEGIS RECON | Cyber Intelligence</title>
+    <title>AEGIS RECON | Cyber Intelligence Dashboard</title>
     
     <!-- Google Fonts - Inter for modern look -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -31,139 +31,253 @@ $apiKey = getenv('API_KEY');
             apiBaseUrl: "../backend/api.php"
         };
     </script>
+    
+    <style>
+        /* ONE-PAGE DASHBOARD LAYOUT */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+        
+        .header-bar {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            border-radius: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .header-bar h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .header-bar .subtitle {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            letter-spacing: 2px;
+        }
+        
+        /* Scan Input Bar */
+        .scan-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .scan-bar input {
+            flex: 1;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+        }
+        
+        .scan-bar input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        
+        .scan-bar button {
+            white-space: nowrap;
+        }
+        
+        /* Stats Row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+        }
+        
+        /* Main Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        @media (max-width: 992px) {
+            .content-grid { grid-template-columns: 1fr; }
+        }
+        
+        /* Status Inline */
+        .status-inline {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 1rem;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .status-inline .spinner-border {
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+        
+        /* Quick Info Cards */
+        .info-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .info-card h6 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .info-card h6 i {
+            color: #3b82f6;
+        }
+    </style>
 </head>
 <body>
-    
-    <div class="container dashboard-container py-5">
-        <!-- Header -->
-        <div class="text-center mb-5">
-            <h1 class="header-logo"><i class="bi bi-shield-lock"></i> AEGIS RECON</h1>
-            <div class="header-subtitle">ADVANCED THREAT INTELLIGENCE SYSTEM</div>
-        </div>
-
-        <!-- Scan Form -->
-        <div class="row justify-content-center mb-5">
-            <div class="col-lg-8">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-terminal"></i> INITIATE SCAN SEQUENCE</span>
-                        <span class="badge bg-transparent border border-primary text-primary">SYSTEM READY</span>
-                    </div>
-                    <div class="card-body p-4">
-                        <form id="scanForm">
-                            <div class="input-group input-group-lg mb-4">
-                                <span class="input-group-text bg-dark border-primary text-primary"><i class="bi bi-globe"></i></span>
-                                <input type="text" class="form-control" id="domainInput" 
-                                       placeholder="ENTER TARGET IDENTIFIER (e.g. domain.com)" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-lg w-100" id="startScanBtn">
-                                <i class="bi bi-play-circle-fill"></i> EXECUTE RECONNAISSANCE
-                            </button>
-                        </form>
-                        <div id="alertContainer" class="mt-3"></div>
-                    </div>
+    <div class="container-fluid py-4" style="max-width: 1400px;">
+        <div class="dashboard-grid">
+            
+            <!-- HEADER BAR -->
+            <div class="header-bar">
+                <div>
+                    <h1><i class="bi bi-shield-lock-fill"></i> AEGIS RECON</h1>
+                    <div class="subtitle">ADVANCED THREAT INTELLIGENCE SYSTEM</div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span id="statusDisplay" class="status-badge status-queued" style="display: none;">
+                        <span class="spinner-border spinner-border-sm"></span> Scanning...
+                    </span>
+                    <button class="btn btn-outline-light btn-sm" id="newScanBtn" style="display: none;">
+                        <i class="bi bi-arrow-repeat"></i> New Scan
+                    </button>
                 </div>
             </div>
-        </div>
-
-        <!-- Scan Status -->
-        <div id="statusSection" class="hidden mb-5">
-            <div class="card">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-3">
-                            <small class="text-muted d-block">JOB ID</small>
-                            <code class="text-primary" id="jobIdDisplay">--</code>
-                        </div>
-                        <div class="col-md-5">
-                            <small class="text-muted d-block">TARGET</small>
-                            <span class="fs-5 fw-bold" id="targetDisplay">--</span>
-                        </div>
-                        <div class="col-md-4 text-end">
-                            <span id="statusDisplay" class="status-badge">INITIALIZING</span>
-                        </div>
+            
+            <!-- SCAN INPUT BAR -->
+            <div class="scan-bar">
+                <i class="bi bi-globe2 text-primary fs-4"></i>
+                <form id="scanForm" class="d-flex flex-grow-1 gap-2">
+                    <input type="text" id="domainInput" placeholder="Enter target domain (e.g., example.com)" required>
+                    <button type="submit" class="btn btn-primary px-4" id="startScanBtn">
+                        <i class="bi bi-search"></i> Scan
+                    </button>
+                </form>
+            </div>
+            
+            <!-- STATUS BAR (Inline, shows during scan) -->
+            <div id="statusSection" class="hidden">
+                <div class="status-inline">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="flex-grow-1">
+                        <strong id="targetDisplay">--</strong>
+                        <small class="text-muted ms-2" id="jobIdDisplay">--</small>
                     </div>
-                    <div class="progress mt-3">
+                    <div id="statusMessage" class="text-info">Initializing...</div>
+                    <div class="progress flex-grow-1" style="height: 6px; max-width: 200px;">
                         <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
-                    </div>
-                    <div class="text-end mt-2">
-                        <small id="statusMessage" class="text-info font-monospace">Waiting for command...</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Results Section -->
-        <div id="resultsSection" class="hidden">
-            <!-- Stats Grid -->
-            <div class="row g-4 mb-5">
-                <div class="col-md-3">
-                    <div class="stat-card p-3">
-                        <div class="stat-number text-primary" id="statSubdomains">0</div>
-                        <div class="stat-label">SUBDOMAINS</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card p-3">
-                        <div class="stat-number text-success" id="statHosts">0</div>
-                        <div class="stat-label">ACTIVE HOSTS</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card p-3">
-                        <div class="stat-number text-danger" id="statVulns">0</div>
-                        <div class="stat-label">THREATS</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card p-3">
-                        <div class="stat-number text-info" id="statEmails">0</div>
-                        <div class="stat-label">IDENTITIES</div>
                     </div>
                 </div>
             </div>
             
-            <div id="resultsHeaderActions"></div>
-
-            <!-- Main Findings Area -->
-            <div class="row">
-                <!-- Left Column: Tech & Findings -->
-                <div class="col-lg-8">
-                    <div class="card mb-4">
-                        <div class="card-header"><i class="bi bi-hdd-network"></i> DETAILED FINDINGS</div>
-                        <div class="card-body">
-                            <div id="hostsContent"></div>
-                            
-                            <div id="technologySection" class="hidden mt-4">
-                                <h5 class="text-primary mb-3">TECHNOLOGY STACK</h5>
-                                <div id="technologyContent"></div>
+            <!-- STATS ROW (Always visible, updates dynamically) -->
+            <div class="stats-row" id="resultsSection">
+                <div class="stat-card">
+                    <div class="stat-number" id="statSubdomains">0</div>
+                    <div class="stat-label">Subdomains</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #10b981;" id="statHosts">0</div>
+                    <div class="stat-label">Active Hosts</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #ef4444;" id="statVulns">0</div>
+                    <div class="stat-label">Threats</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #0ea5e9;" id="statEmails">0</div>
+                    <div class="stat-label">Identities</div>
+                </div>
+            </div>
+            
+            <!-- MAIN CONTENT GRID -->
+            <div class="content-grid">
+                
+                <!-- LEFT: Detailed Findings -->
+                <div>
+                    <div class="info-card">
+                        <h6><i class="bi bi-hdd-network-fill"></i> Reconnaissance Results</h6>
+                        <div id="hostsContent">
+                            <div class="text-center py-5 text-muted">
+                                <i class="bi bi-search fs-1"></i>
+                                <p class="mt-3 mb-0">Enter a domain above to start scanning</p>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <!-- Right Column: OSINT & Visuals -->
-                <div class="col-lg-4">
-                    <div id="osintSection" class="card mb-4 hidden">
-                        <div class="card-header"><i class="bi bi-incognito"></i> OSINT DATA</div>
-                        <div class="card-body">
-                            <div id="emailsList" class="mb-3"></div>
-                            <div id="hostsList"></div>
+                
+                <!-- RIGHT: Side Panel -->
+                <div class="d-flex flex-column gap-4">
+                    
+                    <!-- OSINT Panel -->
+                    <div class="info-card" id="osintSection">
+                        <h6><i class="bi bi-incognito"></i> OSINT Intelligence</h6>
+                        <div id="emailsList">
+                            <p class="text-muted small mb-0">No data yet</p>
                         </div>
                     </div>
-
-                    <div class="card">
-                        <div class="card-header"><i class="bi bi-activity"></i> SYSTEM ACTIONS</div>
-                        <div class="card-body text-center">
-                            <button class="btn btn-outline-info w-100 mb-2" id="newScanBtn">
-                                <i class="bi bi-arrow-repeat"></i> NEW SCAN
-                            </button>
+                    
+                    <!-- Technology Panel -->
+                    <div class="info-card" id="technologySection">
+                        <h6><i class="bi bi-cpu-fill"></i> Technology Stack</h6>
+                        <div id="technologyContent">
+                            <p class="text-muted small mb-0">No data yet</p>
                         </div>
                     </div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="info-card">
+                        <h6><i class="bi bi-lightning-fill"></i> Quick Actions</h6>
+                        <div id="resultsHeaderActions"></div>
+                        <button class="btn btn-outline-primary w-100 mt-2" id="generateReportBtn" disabled>
+                            <i class="bi bi-file-earmark-text"></i> Generate Report
+                        </button>
+                    </div>
+                    
                 </div>
             </div>
+            
         </div>
     </div>
+    
+    <!-- Hidden elements for backward compat -->
+    <div id="hostsList" style="display:none;"></div>
+    <div id="visualizationsSection" style="display:none;"></div>
+    <div id="alertContainer"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/dashboard_enhanced.js"></script>

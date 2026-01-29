@@ -145,15 +145,23 @@ async function handleScanSubmit(e) {
 }
 
 /**
- * Show status section
+ * Show status section (one-page inline version)
  */
 function showStatusSection(data) {
-    jobIdDisplay.textContent = data.job_id;
-    targetDisplay.textContent = data.target || domainInput.value;
+    const jobIdEl = document.getElementById('jobIdDisplay');
+    const targetEl = document.getElementById('targetDisplay');
     
-    // Hide form, show status
-    scanForm.closest('.card').style.display = 'none';
+    if (jobIdEl) jobIdEl.textContent = data.job_id;
+    if (targetEl) targetEl.textContent = data.target || domainInput.value;
+    
+    // Show inline status bar
     statusSection.classList.remove('hidden');
+    
+    // Show scanning indicator in header
+    const statusBadge = document.getElementById('statusDisplay');
+    if (statusBadge) {
+        statusBadge.style.display = 'inline-flex';
+    }
     
     updateStatus(data.status || 'queued');
 }
@@ -353,12 +361,16 @@ async function fetchResults(retryCount = 0) {
         // Display results
         displayResults(data.results);
         
-        // Hide status, show results
+        // Hide inline status bar (scan complete)
         statusSection.classList.add('hidden');
-        resultsSection.classList.remove('hidden');
         
-        // Scroll to results
-        resultsSection.scrollIntoView({ behavior: 'smooth' });
+        // Show "New Scan" button in header
+        const newScanBtn = document.getElementById('newScanBtn');
+        if (newScanBtn) newScanBtn.style.display = 'inline-block';
+        
+        // Hide scanning badge
+        const statusBadge = document.getElementById('statusDisplay');
+        if (statusBadge) statusBadge.style.display = 'none';
         
     } catch (error) {
         console.error('Error fetching results:', error);
