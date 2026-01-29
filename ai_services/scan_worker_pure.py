@@ -213,20 +213,31 @@ class PureScanner:
         return open_ports
 
     def scan_osint(self, domain: str) -> Dict:
-        """Harverst emails/info from public main page"""
+        """Harvest emails/info from public main page"""
+        import re
         emails = set()
-        try:
-             resp = self.session.get(f"http://{domain}", timeout=5)
-             # Regex for emails
-             import re
-             found = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', resp.text)
-             for email in found:
-                 # Filter out binary garbage or default placeholders
-                 if len(email) < 50 and 'example.com' not in email:
-                     emails.add(email)
-        except: pass
+        
+        # Try both HTTPS and HTTP
+        for protocol in ['https', 'http']:
+            try:
+                resp = self.session.get(f"{protocol}://{domain}", timeout=5, allow_redirects=True, verify=False)
+                # Regex for emails
+                found = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', resp.text)
+                for email in found:
+                    # Filter out binary garbage or default placeholders
+                    if len(email) < 50 and 'example.com' not in email and '@sentry' not in email.lower():
+                        emails.add(email.lower())
+                
+                # If we found emails, no need to try the other protocol
+                if emails:
+                    logger.info(f"Found {len(emails)} emails: {list(emails)}")
+                    break
+            except Exception as e:
+                logger.debug(f"OSINT scan failed for {protocol}://{domain}: {e}")
+                continue
         
         return {"emails": list(emails), "hosts": []}
+
 
     def detect_tech(self, host: str) -> Dict:
         summary = {"web_servers": [], "cms": [], "security": []}

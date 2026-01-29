@@ -82,16 +82,31 @@ class AIAnalyst:
         email_list = phases.get('osint', {}).get('emails', [])
         emails_str = ", ".join(email_list) if email_list else "None found"
         
-        # Construct the context
+        # Construct the context with full tech stack
         context = f"""
 Target: {target}
 Scan Date: {timestamp}
 Emails Found: {len(email_list)} ({emails_str})
+
 Hosts Scanned:
 {chr(10).join(hosts_summary) if hosts_summary else 'No hosts scanned'}
 
-Top Vulnerabilities (Sample):
+Technology Stack Detected:
 """
+        # Add full technology details
+        for host in phases.get('hosts', []):
+            tech_data = host.get('technologies', {})
+            servers = tech_data.get('web_servers', [])
+            cms_list = tech_data.get('cms', [])
+            
+            if servers or cms_list:
+                context += f"- {host.get('host', 'Unknown')}:\n"
+                if servers:
+                    context += f"  Servers: {', '.join(servers)}\n"
+                if cms_list:
+                    context += f"  CMS: {', '.join(cms_list)}\n"
+
+        context += "\nVulnerabilities Detected:\n"
         # Add vulnerability details if they exist
         count = 0
         for host in phases.get('hosts', []):
@@ -101,7 +116,7 @@ Top Vulnerabilities (Sample):
                     count += 1
         
         if count == 0:
-            context += "No critical vulnerabilities detected.\n"
+            context += "No critical vulnerabilities detected in automated scan.\n"
         
         return f"""
 You are a Senior Cybersecurity Analyst for Aegis Recon. 
@@ -112,11 +127,11 @@ DATA:
 
 INSTRUCTIONS:
 1. EXECUTIVE SUMMARY: A 2-sentence high-level overview of the security posture.
-2. CRITICAL FINDINGS: List the top 3 most dangerous issues found (or state "None" if secure).
-3. OSINT EXPOSURE: assessing the risk of the emails/info found.
-4. REMEDIATION: Specific, actionable technical steps to fix the issues.
+2. CRITICAL FINDINGS: List the top 3 most dangerous issues found. Analyze the technology versions detected (Apache, PHP, OpenSSL, CMS) for known security concerns. If no critical vulns, mention configuration/version concerns.
+3. EXPOSED INFORMATION: Assess the risk of any emails or information found. If emails were found, explain the phishing/social engineering risk.
+4. REMEDIATION: Specific, actionable technical steps to fix the issues, including software upgrade recommendations based on the detected versions.
 
-TONE: Professional, urgent but not alarmist. Use Markdown formatting.
+TONE: Professional, urgent but not alarmist. Use Markdown formatting with #### for headers.
 """
 
     def analyze(self) -> str:
