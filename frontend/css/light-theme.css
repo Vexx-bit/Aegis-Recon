@@ -345,9 +345,10 @@ body {
   border-radius: 10px;
   padding: 1rem;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   transition: all 0.2s ease;
+  min-width: 0; /* Allow flex items to shrink */
 }
 
 .tech-item:hover {
@@ -358,10 +359,13 @@ body {
 .tech-item i {
   font-size: 1.5rem;
   color: var(--accent-secondary);
+  flex-shrink: 0;
 }
 
 .tech-item .tech-info {
   flex: 1;
+  min-width: 0; /* Allow text to wrap */
+  overflow: hidden;
 }
 
 .tech-item .tech-label {
@@ -374,7 +378,10 @@ body {
 .tech-item .tech-value {
   font-weight: 700;
   color: var(--text-primary);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 /* Ports Grid */
@@ -499,6 +506,18 @@ body {
 
 .vuln-card .vuln-link:hover {
   text-decoration: underline;
+}
+
+.vuln-card .vuln-desc {
+  color: #7f1d1d;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.vuln-card .vuln-title {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 /* Secure State */

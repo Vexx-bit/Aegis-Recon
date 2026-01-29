@@ -669,19 +669,38 @@ function displayResults(results) {
 /**
  * Inject AI Report Button
  */
+let reportGenerated = false;
+
 function injectAIButton(jobId) {
     const container = document.getElementById('resultsHeaderActions');
     if (!container) return;
     
-    // Check if button already exists
-    if (document.getElementById('aiReportBtn')) return;
+    // Store job ID and reset report state
+    currentJobId = jobId;
+    reportGenerated = false;
     
     // Simple button that opens the modal
     container.innerHTML = `
-        <button id="aiReportBtn" class="btn btn-primary w-100" onclick="generateAIReport('${jobId}')">
+        <button id="aiReportBtn" class="btn btn-primary w-100" onclick="openReportModal('${jobId}')">
             <i class="bi bi-shield-exclamation"></i> Generate Threat Report
         </button>
     `;
+}
+
+/**
+ * Open report modal - show cached if available, otherwise generate
+ */
+function openReportModal(jobId) {
+    const reportModal = new bootstrap.Modal(document.getElementById('reportModal'));
+    
+    // If report already generated, just show the modal
+    if (reportGenerated && currentReportData) {
+        reportModal.show();
+        return;
+    }
+    
+    // Generate new report
+    generateAIReport(jobId);
 }
 
 /**
@@ -781,7 +800,10 @@ async function generateAIReport(jobId) {
             </div>
         `;
         
-        btn.innerHTML = '<i class="bi bi-check-lg"></i> Report Generated';
+        // Mark report as generated so we can show cached version
+        reportGenerated = true;
+        
+        btn.innerHTML = '<i class="bi bi-eye"></i> View Report';
         btn.disabled = false;
         
     } catch (error) {
@@ -999,14 +1021,14 @@ function displayHosts(hosts) {
             
             html += vulns.map(vuln => `
                 <div class="vuln-card">
-                    <div class="d-flex justify-content-between">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
                         <div class="vuln-title">
                             <i class="bi bi-bug-fill me-2"></i> 
                             ${vuln.title || 'UNKNOWN CVE'}
                         </div>
                         ${vuln.score ? `<span class="badge bg-danger text-white">CVSS ${vuln.score}</span>` : ''}
                     </div>
-                    <p class="mb-2 text-white opacity-75 small">${vuln.desc || vuln.msg || 'Legacy vulnerability detected via scanner.'}</p>
+                    <p class="vuln-desc">${vuln.desc || vuln.msg || 'Vulnerability detected via scanner.'}</p>
                     ${vuln.url ? `<a href="${vuln.url}" target="_blank" class="btn btn-sm btn-outline-danger py-0" style="font-size: 0.7rem;">VIEW INTEL <i class="bi bi-box-arrow-up-right ms-1"></i></a>` : ''}
                 </div>
             `).join('');
