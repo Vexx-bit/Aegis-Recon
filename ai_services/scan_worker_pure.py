@@ -243,43 +243,58 @@ class PureScanner:
         summary = {"web_servers": [], "cms": [], "security": []}
         server = None
         
+        logger.info(f"Detecting technologies for: {host}")
+        
         # Try both HTTP and HTTPS
         for protocol in ['https', 'http']:
             try:
                 url = f"{protocol}://{host}"
-                resp = self.session.get(url, timeout=5, allow_redirects=True, verify=False)
+                logger.debug(f"Trying {url}")
+                resp = self.session.get(url, timeout=10, allow_redirects=True, verify=False)
+                
+                logger.info(f"Got response from {url}: status={resp.status_code}")
+                
+                # Log all relevant headers for debugging
+                server_header = resp.headers.get('Server', '')
+                powered_by = resp.headers.get('X-Powered-By', '')
+                logger.info(f"Headers - Server: '{server_header}', X-Powered-By: '{powered_by}'")
                 
                 # Extract Server header
-                if not server:
-                    server = resp.headers.get('Server')
-                    if server:
-                        summary['web_servers'].append(server)
-                        logger.info(f"Detected server: {server}")
+                if not server and server_header:
+                    server = server_header
+                    summary['web_servers'].append(server)
+                    logger.info(f"Detected web server: {server}")
                 
                 # X-Powered-By header
-                powered_by = resp.headers.get('X-Powered-By')
                 if powered_by and powered_by not in summary['web_servers']:
                     summary['web_servers'].append(powered_by)
+                    logger.info(f"Detected X-Powered-By: {powered_by}")
                 
                 # Simple Technology checks from HTML
                 html = resp.text.lower()
                 if 'wp-content' in html or 'wp-includes' in html:
                     if 'WordPress' not in summary['cms']:
                         summary['cms'].append("WordPress")
+                        logger.info("Detected CMS: WordPress")
                 if 'joomla' in html:
                     if 'Joomla' not in summary['cms']:
                         summary['cms'].append("Joomla")
+                        logger.info("Detected CMS: Joomla")
                 if 'drupal' in html:
                     if 'Drupal' not in summary['cms']:
                         summary['cms'].append("Drupal")
+                        logger.info("Detected CMS: Drupal")
                         
                 # If we got a server, no need to try the other protocol
                 if server:
                     break
                     
             except Exception as e:
-                logger.debug(f"Tech detection failed for {protocol}://{host}: {e}")
+                logger.warning(f"Tech detection failed for {protocol}://{host}: {type(e).__name__}: {e}")
                 continue
+        
+        if not summary['web_servers']:
+            logger.warning(f"No server detected for {host}")
         
         # Vulners Check if software found
         if server:
