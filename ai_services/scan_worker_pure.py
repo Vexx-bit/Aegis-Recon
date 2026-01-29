@@ -46,6 +46,11 @@ class PureScanner:
             'security_score': 100
         }
         self.session = requests.Session()
+        # FIX: Spoof User-Agent to avoid blocking
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        })
         self.session.headers.update({'User-Agent': 'AegisRecon/1.0 (Security-Research)'})
         
         # Load Env (Primitive)
@@ -308,8 +313,17 @@ class PureScanner:
             
             self.results['phases']['hosts'] = hosts_data
             
+            # 4. OSINT
+            try:
+                self.update_status('gathering_osint')
+                osint_data = self.scan_osint(self.target)
+                self.results['phases']['osint'] = osint_data
+                if osint_data.get('emails'):
+                    self.results['metadata']['total_emails_found'] = len(osint_data['emails'])
+            except: pass
+
             # Done
-            self.update_status('done')
+            self.update_status('finished')
             
         except Exception as e:
             logger.error(f"Global Scan Failure: {e}")

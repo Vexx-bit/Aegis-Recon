@@ -866,7 +866,16 @@ function displayHosts(hosts) {
         // --- 2. Tech Stack Integration (Merged here for cleaner UI) ---
         // (We check if this host has tech data attached to it)
         const tech = hostData.technologies?.summary || hostData.technologies;
-        if (tech && Object.keys(tech).length > 0) {
+        
+        // Check if we actually have tech data to show
+        let hasTechData = false;
+        if (tech) {
+            // Check if any known category has items
+            const categories = ['web_servers', 'cms', 'programming_languages', 'frameworks', 'security', 'languages'];
+            hasTechData = categories.some(cat => tech[cat] && tech[cat].length > 0);
+        }
+
+        if (hasTechData) {
             html += `<div class="mb-4">
                 <h6 class="text-secondary text-uppercase mb-3 letter-spacing-2">
                     <i class="bi bi-cpu-fill me-2"></i> Technology Fingerprint
@@ -887,7 +896,7 @@ function displayHosts(hosts) {
 
             html += renderTech(tech.web_servers, 'bi bi-server', 'Server');
             html += renderTech(tech.cms, 'bi bi-layout-text-window-reverse', 'CMS');
-            html += renderTech(tech.programming_languages, 'bi bi-code-slash', 'Lang');
+            html += renderTech(tech.programming_languages || tech.languages, 'bi bi-code-slash', 'Lang');
             html += renderTech(tech.frameworks, 'bi bi-boxes', 'Frame');
             html += renderTech(tech.security, 'bi bi-shield-lock', 'Sec');
             
