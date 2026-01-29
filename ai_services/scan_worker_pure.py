@@ -85,11 +85,12 @@ class PureScanner:
             sql = "UPDATE scans SET status = %s WHERE job_id = %s"
             cursor.execute(sql, (status, self.job_id))
             
-            # If done, save results too
-            if status == 'done':
+            # If finished/done, save results too
+            if status in ('done', 'finished', 'completed'):
                 results_json = json.dumps(self.results)
-                sql_res = "UPDATE scans SET results = %s, finished_at = NOW() WHERE job_id = %s"
+                sql_res = "UPDATE scans SET results = %s, completed_at = NOW() WHERE job_id = %s"
                 cursor.execute(sql_res, (results_json, self.job_id))
+                logger.info(f"Results saved to database ({len(results_json)} bytes)")
                 
             conn.commit()
             conn.close()

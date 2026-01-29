@@ -403,7 +403,7 @@ function handleResult($db) {
         $scan = $result->fetch_assoc();
         $stmt->close();
         
-        if ($scan['status'] !== 'done' && $scan['status'] !== 'completed') {
+        if ($scan['status'] !== 'done' && $scan['status'] !== 'completed' && $scan['status'] !== 'finished') {
             sendError(
                 'Scan not completed yet. Current status: ' . $scan['status'], 
                 400, 
