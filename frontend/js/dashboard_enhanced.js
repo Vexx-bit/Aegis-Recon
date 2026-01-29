@@ -809,148 +809,153 @@ function displayOSINT(osint) {
 }
 
 /**
- * Display technology stack
- */
-function displayTechnologies(hosts) {
-    const technologySection = document.getElementById('technologySection');
-    const technologyContent = document.getElementById('technologyContent');
-    
-    let hastech = false;
-    let html = '';
-    
-    hosts.forEach(hostData => {
-        // Support both old (technologies.summary) and new (technologies) structure
-        let tech = hostData.technologies?.summary || hostData.technologies;
-        
-        if (tech && (Object.keys(tech).length > 0)) {
-            hastech = true;
-            
-            html += `<div class="host-card">
-                <h6 class="fw-semibold mb-3">
-                    <i class="bi bi-globe"></i> ${hostData.host}
-                </h6>`;
-            
-            // Helper to render badges
-            const renderBadges = (list, type) => {
-                if (!list || list.length === 0) return '';
-                return `<div class="mb-2">
-                    <strong class="text-muted small">${type}:</strong><br>
-                    ${list.map(t => `<span class="tech-badge ${type.toLowerCase()}">${t}</span>`).join('')}
-                </div>`;
-            };
-
-            html += renderBadges(tech.cms, 'CMS');
-            html += renderBadges(tech.web_servers, 'Server');
-            html += renderBadges(tech.programming_languages || tech.languages, 'Language');
-            html += renderBadges(tech.frameworks, 'Framework');
-            html += renderBadges(tech.security, 'Security');
-            
-            // Outdated technologies warning (Legacy support)
-            if (hostData.outdated_technologies && hostData.outdated_technologies.length > 0) {
-                html += `<div class="alert alert-warning mt-3 mb-0">
-                    <i class="bi bi-exclamation-triangle-fill"></i> 
-                    <strong>Outdated Technologies Detected:</strong><br>
-                    <ul class="mb-0 mt-2">
-                        ${hostData.outdated_technologies.map(t => 
-                            `<li>${t.technology} ${t.version}: ${t.recommendation}</li>`
-                        ).join('')}
-                    </ul>
-                </div>`;
-            }
-            
-            html += `</div>`;
-        }
-    });
-    
-    if (hastech) {
-        technologyContent.innerHTML = html;
-        technologySection.classList.remove('hidden');
-    }
-}
-
-/**
- * Display hosts and vulnerabilities
+ * Display hosts and detailed findings with enhanced UI
  */
 function displayHosts(hosts) {
     const hostsContent = document.getElementById('hostsContent');
-    
     let html = '';
     
     hosts.forEach((hostData, index) => {
-        html += `<div class="host-card">
-            <h5 class="fw-bold mb-3">
-                <i class="bi bi-hdd-network-fill text-primary"></i> ${hostData.host}
-            </h5>`;
-        
-        // Open Ports (Handle Nmap nesting OR direct list)
-        const ports = hostData.ports || hostData.nmap?.ports || [];
-        
-        if (ports.length > 0) {
-            html += `<div class="mb-3">
-                <h6 class="fw-semibold"><i class="bi bi-door-open"></i> Open Ports</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm text-white-50">
-                        <thead>
-                            <tr>
-                                <th>PORT</th>
-                                <th>STATE</th>
-                                <th>SERVICE</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${ports.map(port => `
-                                <tr>
-                                    <td class="text-primary font-monospace">${port.port}</td>
-                                    <td><span class="badge bg-success bg-opacity-25 text-success border border-success">${port.state || 'open'}</span></td>
-                                    <td class="text-white">${port.service || 'unknown'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+        // --- 1. Host Header ---
+        html += `
+        <div class="card mb-4 host-card border-0 shadow-lg">
+            <div class="host-header">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <i class="bi bi-hdd-network-fill fs-2 text-primary"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-0 fw-bold text-light custom-font">${hostData.host}</h4>
+                        <small class="text-primary opacity-75">TARGET SYSTEM DETECTED</small>
+                    </div>
                 </div>
+                <div class="text-end">
+                    <span class="badge bg-dark border border-primary text-primary px-3 py-2">LIVE</span>
+                </div>
+            </div>
+            
+            <div class="host-body">
+        `;
+
+        // --- 2. Tech Stack Integration (Merged here for cleaner UI) ---
+        // (We check if this host has tech data attached to it)
+        const tech = hostData.technologies?.summary || hostData.technologies;
+        if (tech && Object.keys(tech).length > 0) {
+            html += `<div class="mb-4">
+                <h6 class="text-secondary text-uppercase mb-3 letter-spacing-2">
+                    <i class="bi bi-cpu-fill me-2"></i> Technology Fingerprint
+                </h6>
+                <div class="tech-grid">`;
+                
+            // Helper to render distinct tech blocks
+            const renderTech = (list, icon, type) => {
+                if (!list || list.length === 0) return '';
+                return list.map(t => `
+                    <div class="tech-icon-box">
+                        <i class="${icon}"></i> 
+                        <span class="opacity-75 small me-1">${type}:</span>
+                        <strong>${t}</strong>
+                    </div>
+                `).join('');
+            };
+
+            html += renderTech(tech.web_servers, 'bi bi-server', 'Server');
+            html += renderTech(tech.cms, 'bi bi-layout-text-window-reverse', 'CMS');
+            html += renderTech(tech.programming_languages, 'bi bi-code-slash', 'Lang');
+            html += renderTech(tech.frameworks, 'bi bi-boxes', 'Frame');
+            html += renderTech(tech.security, 'bi bi-shield-lock', 'Sec');
+            
+            html += `</div></div>`;
+        }
+
+        // --- 3. Ports Grid (Replaces old table) ---
+        const ports = hostData.ports || hostData.nmap?.ports || [];
+        if (ports.length > 0) {
+            html += `
+            <div class="mb-4">
+                <h6 class="text-secondary text-uppercase mb-3 letter-spacing-2">
+                    <i class="bi bi-ethernet me-2"></i> Open Service Ports
+                </h6>
+                <div class="ports-grid">
+            `;
+            
+            html += ports.map(port => `
+                <div class="port-item">
+                    <div class="port-number">${port.port}</div>
+                    <div class="port-service">
+                        <i class="bi bi-circle-fill text-success" style="font-size: 6px; vertical-align: middle; margin-right: 4px;"></i>
+                        ${port.service || 'UNKNOWN'}
+                    </div>
+                </div>
+            `).join('');
+            
+            html += `</div></div>`;
+        } else {
+             html += `<div class="alert alert-dark border-secondary mb-4 opacity-50">
+                <i class="bi bi-dash-circle"></i> No open ports discovered on this host.
             </div>`;
         }
-        
-        // Vulnerabilities (Handle legacy separate list OR new Tech/Vulners issues)
+
+        // --- 4. Vulnerabilities (Visual Alerts) ---
         let vulns = [...(hostData.vulnerabilities || [])];
-        
         if (hostData.technologies?.vulners_cves) {
              hostData.technologies.vulners_cves.forEach(cve => {
                  vulns.push({
-                     title: `<span class="text-danger fw-bold">${cve.id}</span>: ${cve.title}`,
+                     title: cve.id, // Explicit ID for display
+                     desc: cve.title,
                      url: cve.link,
+                     score: cve.score || 10.0,
                      severity: 'critical'
                  });
              });
         }
-        
+
         if (vulns.length > 0) {
-            html += `<div class="mb-3">
-                <h6 class="fw-semibold text-danger">
-                    <i class="bi bi-exclamation-triangle-fill"></i> DETECTED THREATS (${vulns.length})
+            html += `
+            <div>
+                <h6 class="text-danger text-uppercase mb-3 letter-spacing-2">
+                    <i class="bi bi-radioactive me-2"></i> Critical Threats Detected
                 </h6>
-                ${vulns.map(vuln => `
-                    <div class="vuln-item critical mb-2 p-3 border border-danger bg-danger bg-opacity-10 rounded">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="mb-1">${vuln.msg || vuln.title || 'Vulnerability'}</div>
-                                ${vuln.url ? `<a href="${vuln.url}" target="_blank" class="text-info text-decoration-none small"><i class="bi bi-link-45deg"></i> Reference Link</a>` : ''}
-                            </div>
-                            <span class="badge bg-danger">CRITICAL</span>
+            `;
+            
+            html += vulns.map(vuln => `
+                <div class="vuln-card">
+                    <div class="d-flex justify-content-between">
+                        <div class="vuln-title">
+                            <i class="bi bi-bug-fill me-2"></i> 
+                            ${vuln.title || 'UNKNOWN CVE'}
                         </div>
+                        ${vuln.score ? `<span class="badge bg-danger text-white">CVSS ${vuln.score}</span>` : ''}
                     </div>
-                `).join('')}
-            </div>`;
+                    <p class="mb-2 text-white opacity-75 small">${vuln.desc || vuln.msg || 'Legacy vulnerability detected via scanner.'}</p>
+                    ${vuln.url ? `<a href="${vuln.url}" target="_blank" class="btn btn-sm btn-outline-danger py-0" style="font-size: 0.7rem;">VIEW INTEL <i class="bi bi-box-arrow-up-right ms-1"></i></a>` : ''}
+                </div>
+            `).join('');
+            
+            html += `</div>`;
         } else {
-            html += `<div class="alert alert-success bg-success bg-opacity-10 border-success text-success mb-0">
-                <i class="bi bi-shield-check"></i> No critical vulnerabilities detected
-            </div>`;
+            html += `
+            <div class="p-3 border border-success bg-success bg-opacity-10 rounded text-center">
+                <i class="bi bi-shield-check fs-4 text-success d-block mb-2"></i>
+                <span class="text-success fw-bold">SYSTEM SECURE</span>
+                <p class="mb-0 small text-white-50">No high-risk vulnerabilities correlated with intelligence feeds.</p>
+            </div>
+            `;
         }
-        
-        html += `</div>`;
+
+        html += `</div></div>`; // End Card Body & Card
     });
-    
-    hostsContent.innerHTML = html || '<p class="text-muted">No host data available</p>';
+
+    hostsContent.innerHTML = html || `
+    <div class="text-center py-5 opacity-50">
+        <i class="bi bi-search fs-1 display-1"></i>
+        <p class="mt-3">Awaiting scan data...</p>
+    </div>`;
+}
+
+// Deprecate old function to avoid duplicate display
+function displayTechnologies(hosts) {
+    // Logic moved inside displayHosts for unified view
 }
 
 /**
@@ -966,7 +971,7 @@ function resetDashboard() {
     // Reset form
     domainInput.value = '';
     startScanBtn.disabled = false;
-    startScanBtn.innerHTML = '<i class="bi bi-play-circle-fill"></i> EXECUTE RECONNAISSANCE'; // Reset to futuristic Text
+    startScanBtn.innerHTML = '<i class="bi bi-play-circle-fill"></i> EXECUTE RECONNAISSANCE';
     
     // Show form, hide sections
     scanForm.closest('.card').style.display = 'block';
