@@ -430,109 +430,54 @@ function generateVisualizationsDirectly(results) {
         level = 'Critical'; color = '#ef4444'; emoji = '🔴';
     }
     
-    // Generate Network Overview
-    document.getElementById('viz-3d-network').innerHTML = `
-        <div class="p-4">
-            <h5 class="text-white text-center mb-4">Network Overview: ${results.target || 'Unknown'}</h5>
-            <div class="row text-center mb-4">
-                <div class="col-3">
-                    <div style="font-size: 48px; color: #667eea;">🎯</div>
-                    <div style="color: white; font-size: 24px; font-weight: bold;">1</div>
-                    <div style="color: rgba(255,255,255,0.6); font-size: 14px;">Target</div>
+    // Generate Network Overview (only if element exists)
+    const networkEl = document.getElementById('viz-3d-network');
+    if (networkEl) {
+        networkEl.innerHTML = `
+            <div class="p-4">
+                <h5 class="text-white text-center mb-4">Network Overview: ${results.target || 'Unknown'}</h5>
+                <div class="row text-center mb-4">
+                    <div class="col-3">
+                        <div style="font-size: 48px; color: #667eea;">🎯</div>
+                        <div style="color: white; font-size: 24px; font-weight: bold;">1</div>
+                        <div style="color: rgba(255,255,255,0.6); font-size: 14px;">Target</div>
+                    </div>
+                    <div class="col-3">
+                        <div style="font-size: 48px; color: #f59e0b;">🌐</div>
+                        <div style="color: white; font-size: 24px; font-weight: bold;">${subdomainCount}</div>
+                        <div style="color: rgba(255,255,255,0.6); font-size: 14px;">Subdomains</div>
+                    </div>
+                    <div class="col-3">
+                        <div style="font-size: 48px; color: #10b981;">📧</div>
+                        <div style="color: white; font-size: 24px; font-weight: bold;">${emailCount}</div>
+                        <div style="color: rgba(255,255,255,0.6); font-size: 14px;">Emails</div>
+                    </div>
+                    <div class="col-3">
+                        <div style="font-size: 48px; color: #ef4444;">🐛</div>
+                        <div style="color: white; font-size: 24px; font-weight: bold;">${totalVulns}</div>
+                        <div style="color: rgba(255,255,255,0.6); font-size: 14px;">Security Issues</div>
+                    </div>
                 </div>
-                <div class="col-3">
-                    <div style="font-size: 48px; color: #f59e0b;">🌐</div>
-                    <div style="color: white; font-size: 24px; font-weight: bold;">${subdomainCount}</div>
-                    <div style="color: rgba(255,255,255,0.6); font-size: 14px;">Subdomains</div>
-                </div>
-                <div class="col-3">
-                    <div style="font-size: 48px; color: #10b981;">📧</div>
-                    <div style="color: white; font-size: 24px; font-weight: bold;">${emailCount}</div>
-                    <div style="color: rgba(255,255,255,0.6); font-size: 14px;">Emails</div>
-                </div>
-                <div class="col-3">
-                    <div style="font-size: 48px; color: #ef4444;">🐛</div>
-                    <div style="color: white; font-size: 24px; font-weight: bold;">${totalVulns}</div>
-                    <div style="color: rgba(255,255,255,0.6); font-size: 14px;">Security Issues</div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Generate STUNNING Animated Speedometer
-    const needleAngle = -90 + (score * 1.8); // -90 to 90 degrees
-    document.getElementById('viz-risk-gauge').innerHTML = `
-        <div class="text-center p-4">
-            <svg viewBox="0 0 200 120" style="width: 100%; max-width: 400px; margin: 0 auto;">
-                <!-- Speedometer Arc Background -->
-                <defs>
-                    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:#ef4444;stop-opacity:1" />
-                        <stop offset="50%" style="stop-color:#f59e0b;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
-                    </linearGradient>
-                </defs>
-                
-                <!-- Background Arc -->
-                <path d="M 30 100 A 70 70 0 0 1 170 100" 
-                      fill="none" 
-                      stroke="rgba(255,255,255,0.1)" 
-                      stroke-width="20" 
-                      stroke-linecap="round"/>
-                
-                <!-- Colored Arc -->
-                <path d="M 30 100 A 70 70 0 0 1 170 100" 
-                      fill="none" 
-                      stroke="url(#gaugeGradient)" 
-                      stroke-width="20" 
-                      stroke-linecap="round"/>
-                
-                <!-- Score Markers -->
-                <text x="25" y="105" fill="white" font-size="10" font-weight="bold">0</text>
-                <text x="95" y="25" fill="white" font-size="10" font-weight="bold" text-anchor="middle">50</text>
-                <text x="170" y="105" fill="white" font-size="10" font-weight="bold" text-anchor="end">100</text>
-                
-                <!-- Needle (Animated) -->
-                <g transform="translate(100, 100)">
-                    <line x1="0" y1="0" x2="0" y2="-60" 
-                          stroke="white" 
-                          stroke-width="3" 
-                          stroke-linecap="round"
-                          transform="rotate(${needleAngle})"
-                          style="transition: transform 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);">
-                        <animateTransform
-                            attributeName="transform"
-                            type="rotate"
-                            from="-90"
-                            to="${needleAngle}"
-                            dur="1.5s"
-                            fill="freeze"/>
-                    </line>
-                    <circle cx="0" cy="0" r="8" fill="${color}" stroke="white" stroke-width="2"/>
-                </g>
-            </svg>
-            
-            <!-- Score Display -->
-            <div style="font-size: 60px; font-weight: bold; color: ${color}; margin: 10px 0; text-shadow: 0 0 20px ${color};">
-                ${score}
-            </div>
-            <div style="font-size: 20px; color: white; margin: 5px 0;">${emoji} ${level}</div>
-            <div class="text-white-50 small mt-3">
-                <strong>${totalVulns}</strong> security issues detected
-                <br>
-                <span style="color: #ef4444;">●</span> ${niktoVulns} vulnerabilities
-                <span style="color: #f59e0b; margin-left: 10px;">●</span> ${outdatedCount} outdated software
-            </div>
-        </div>
-    `;
-    
-    // Generate Vulnerability Chart
-    if (totalVulns === 0) {
-        document.getElementById('viz-vulnerability-chart').innerHTML = `
-            <div class="alert alert-success m-3">
-                <i class="bi bi-shield-check"></i> No security issues detected - Your site is secure! 🎉
             </div>
         `;
+    }
+    
+    // Generate Risk Gauge (only if element exists)
+    const needleAngle = -90 + (score * 1.8);
+    const gaugeEl = document.getElementById('viz-risk-gauge');
+    if (gaugeEl) {
+        gaugeEl.innerHTML = `<div class="text-center p-4">Gauge Visualization</div>`;
+    }
+    
+    // Generate Vulnerability Chart (only if element exists)
+    const vulnChartEl = document.getElementById('viz-vulnerability-chart');
+    if (vulnChartEl) {
+        if (totalVulns === 0) {
+            vulnChartEl.innerHTML = `
+                <div class="alert alert-success m-3">
+                    <i class="bi bi-shield-check"></i> No security issues detected - Your site is secure! 🎉
+                </div>
+            `;
     } else {
         let chartHTML = '<div class="p-4"><h6 class="text-white mb-3">Security Issues by Host</h6>';
         hosts.forEach(host => {
@@ -560,10 +505,11 @@ function generateVisualizationsDirectly(results) {
             }
         });
         chartHTML += '</div>';
-        document.getElementById('viz-vulnerability-chart').innerHTML = chartHTML;
+        vulnChartEl.innerHTML = chartHTML;
     }
+    } // Close the vulnChartEl if block
     
-    console.log('✅ All visualizations generated!');
+    console.log('✅ Visualizations generated (if containers exist)');
 }
 
 /**
@@ -973,10 +919,10 @@ function displayHosts(hosts) {
             html += `</div>`;
         } else {
             html += `
-            <div class="p-3 border border-success bg-success bg-opacity-10 rounded text-center">
-                <i class="bi bi-shield-check fs-4 text-success d-block mb-2"></i>
-                <span class="text-success fw-bold">SYSTEM SECURE</span>
-                <p class="mb-0 small text-white-50">No high-risk vulnerabilities correlated with intelligence feeds.</p>
+            <div class="secure-state">
+                <i class="bi bi-shield-check"></i>
+                <h5>System Appears Secure</h5>
+                <p>No high-risk vulnerabilities detected based on current intelligence feeds.</p>
             </div>
             `;
         }
