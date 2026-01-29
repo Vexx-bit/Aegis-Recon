@@ -579,6 +579,9 @@ function insertHTMLWithScripts(elementId, html) {
 /**
  * Clear previous scan results
  */
+/**
+ * Clear previous scan results
+ */
 function clearPreviousResults() {
     console.log('Clearing previous scan results...');
     
@@ -588,41 +591,27 @@ function clearPreviousResults() {
     document.getElementById('statVulns').textContent = '0';
     document.getElementById('statEmails').textContent = '0';
     
-    // Clear technology section
+    // Clear and Hide Technology
     const technologySection = document.getElementById('technologySection');
     const technologyContent = document.getElementById('technologyContent');
-    if (technologySection) {
-        technologySection.classList.add('hidden');
-    }
-    if (technologyContent) {
-        technologyContent.innerHTML = '';
-    }
+    if (technologySection) technologySection.classList.add('hidden'); // Ensure hidden class is applied
+    if (technologyContent) technologyContent.innerHTML = '';
     
-    // Clear OSINT section
+    // Clear and Hide OSINT
     const osintSection = document.getElementById('osintSection');
     const emailsList = document.getElementById('emailsList');
-    const hostsList = document.getElementById('hostsList');
-    if (osintSection) {
-        osintSection.classList.add('hidden');
-    }
-    if (emailsList) {
-        emailsList.innerHTML = '';
-    }
-    if (hostsList) {
-        hostsList.innerHTML = '';
-    }
+    if (osintSection) osintSection.classList.add('hidden'); // Ensure hidden class is applied
+    if (emailsList) emailsList.innerHTML = '';
     
-    // Clear hosts section
+    // Clear Hosts
     const hostsContent = document.getElementById('hostsContent');
     if (hostsContent) {
-        hostsContent.innerHTML = '';
+        hostsContent.innerHTML = '<div class="text-center py-5 opacity-50"><i class="bi bi-search fs-1 display-1"></i><p class="mt-3">Awaiting scan data...</p></div>';
     }
     
-    // Hide visualizations section
+    // Hide visualizations
     const vizSection = document.getElementById('visualizationsSection');
-    if (vizSection) {
-        vizSection.style.display = 'none';
-    }
+    if (vizSection) vizSection.style.display = 'none';
     
     console.log('Previous results cleared successfully');
 }
@@ -681,27 +670,23 @@ function displayResults(results) {
     // --- FIX 2: HANDLE EMPTY DATA GRACEFULLY ---
     
     // Display OSINT data (Emails)
-    // Only show if we actually have data, otherwise show simple message
-    if (phases.osint) {
+    if (phases.osint && phases.osint.emails && phases.osint.emails.length > 0) {
         displayOSINT(phases.osint);
+        // Only show the section if we have actual emails
+        document.getElementById('osintSection').classList.remove('hidden');
     } else {
-        // Prepare empty OSINT structure so UI doesn't break
-        displayOSINT({ emails: [], hosts: [] });
+        // Keep hidden or show empty state if desired, but user wants clean 'hidden' look if empty
+        console.log('No OSINT data to display. Keeping section hidden.');
     }
     
-    // Display technologies & Hosts (This is now merged into displayHosts mostly)
+    // Display hosts and findings
     if (hosts.length > 0) {
         displayHosts(hosts);
-        
-        // Hide the separate technology section countainer if we moved it
-        // OR populate it if we keep it separate. 
-        // Strategy: "displayHosts" now handles EVERYTHING for the host (Tech + Ports + Vulns)
-        // so we don't need separate calls.
     } else {
         document.getElementById('hostsContent').innerHTML = `
             <div class="alert alert-info border-info bg-opacity-10 text-center custom-font">
                 <i class="bi bi-info-circle fs-4 d-block mb-3"></i>
-                No active hosts responded to probes. Target might be down or blocking scans.
+                No active hosts responded to probes.
             </div>`;
     }
     
