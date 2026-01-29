@@ -639,47 +639,73 @@ function displayResults(results) {
     // Validate we have the correct scan data
     if (!results || !results.target) {
         console.error('Invalid results data received');
+        const statusMsg = document.getElementById('statusMessage');
+        if (statusMsg) statusMsg.textContent = "Error: Invalid scan data.";
         return;
     }
     
     // Log target for debugging
     console.log('Displaying results for target:', results.target);
     
-    // Update statistics with SMART counting
-    const metadata = results.metadata || {};
+    // --- FIX 1: CALCULATE STATS DYNAMICALLY (Ignore Metadata) ---
+    // The Python scanner might not send metadata totals, so we count them here.
+    const phases = results.phases || {};
+    const hosts = phases.hosts || [];
     
-    // Count ALL security issues (Nikto + outdated software)
-    const niktoVulns = metadata.total_vulnerabilities || 0;
-    let outdatedCount = 0;
-    const hosts = results.phases?.hosts || [];
+    const subdomainsCount = phases.subdomains ? phases.subdomains.length : 0;
+    const activeHostsCount = hosts.length;
+    
+    // Calculate total emails locally
+    const osintEmails = phases.osint && phases.osint.emails ? phases.osint.emails.length : 0;
+
+    // Calculate total vulns by summing up vulnerabilities from each host
+    let totalThreats = 0;
     hosts.forEach(host => {
-        if (host.whatweb?.outdated_technologies) {
-            outdatedCount += host.whatweb.outdated_technologies.length;
+        // Count Vulners/Offline CVEs (New)
+        if (host.technologies?.vulners_cves) {
+            totalThreats += host.technologies.vulners_cves.length;
+        }
+        // Count Legacy/Other Vulns
+        if (host.vulnerabilities) {
+            totalThreats += host.vulnerabilities.length;
         }
     });
-    const totalSecurityIssues = niktoVulns + outdatedCount;
+
+    // Update DOM Elements
+    // Use textContent for security, but ensure fallback to '0'
+    document.getElementById('statSubdomains').textContent = subdomainsCount;
+    document.getElementById('statHosts').textContent = activeHostsCount;
+    document.getElementById('statVulns').textContent = totalThreats;
+    document.getElementById('statEmails').textContent = osintEmails;
     
-    document.getElementById('statSubdomains').textContent = metadata.total_subdomains || 0;
-    document.getElementById('statHosts').textContent = metadata.total_hosts_scanned || 0;
-    document.getElementById('statVulns').textContent = totalSecurityIssues; // DYNAMIC!
-    document.getElementById('statEmails').textContent = metadata.total_emails_found || 0;
+    // --- FIX 2: HANDLE EMPTY DATA GRACEFULLY ---
     
-    // Display OSINT data
-    if (results.phases && results.phases.osint) {
-        displayOSINT(results.phases.osint);
+    // Display OSINT data (Emails)
+    // Only show if we actually have data, otherwise show simple message
+    if (phases.osint) {
+        displayOSINT(phases.osint);
+    } else {
+        // Prepare empty OSINT structure so UI doesn't break
+        displayOSINT({ emails: [], hosts: [] });
     }
     
-    // Display technology stack
-    if (results.phases && results.phases.hosts) {
-        displayTechnologies(results.phases.hosts);
+    // Display technologies & Hosts (This is now merged into displayHosts mostly)
+    if (hosts.length > 0) {
+        displayHosts(hosts);
+        
+        // Hide the separate technology section countainer if we moved it
+        // OR populate it if we keep it separate. 
+        // Strategy: "displayHosts" now handles EVERYTHING for the host (Tech + Ports + Vulns)
+        // so we don't need separate calls.
+    } else {
+        document.getElementById('hostsContent').innerHTML = `
+            <div class="alert alert-info border-info bg-opacity-10 text-center custom-font">
+                <i class="bi bi-info-circle fs-4 d-block mb-3"></i>
+                No active hosts responded to probes. Target might be down or blocking scans.
+            </div>`;
     }
     
-    // Display hosts and vulnerabilities
-    if (results.phases && results.phases.hosts) {
-        displayHosts(results.phases.hosts);
-    }
-    
-    // Generate visualizations DIRECTLY (no API calls!)
+    // Visualizations
     console.log('Generating visualizations directly...');
     generateVisualizationsDirectly(results);
     

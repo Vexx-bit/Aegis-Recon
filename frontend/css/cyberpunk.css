@@ -106,13 +106,10 @@ h6 {
 /* STATS */
 .stat-card {
   border: 1px solid var(--border);
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.03) 0%,
-    rgba(255, 255, 255, 0.01) 100%
-  );
+  background: rgba(10, 10, 30, 0.8); /* Darker, more opaque background */
   position: relative;
   overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
 
 .stat-card::before {
@@ -120,7 +117,7 @@ h6 {
   position: absolute;
   top: 0;
   left: 0;
-  width: 2px;
+  width: 4px; /* Thicker accent line */
   height: 100%;
   background: var(--primary);
   box-shadow: var(--glow-primary);
@@ -129,14 +126,19 @@ h6 {
 .stat-number {
   font-family: "Courier New", monospace;
   font-size: 3rem;
-  color: white;
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  color: #fff; /* Pure white for max contrast */
+  text-shadow: 0 0 15px rgba(0, 240, 255, 0.7); /* Stronger glow */
+  font-weight: bold;
 }
 
 .stat-label {
   color: var(--primary);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   letter-spacing: 2px;
+  text-transform: uppercase;
+  background: rgba(0,0,0,0.3); /* Slight background for readability */
+  padding: 2px 5px;
+  border-radius: 4px;
 }
 
 /* BADGES */
