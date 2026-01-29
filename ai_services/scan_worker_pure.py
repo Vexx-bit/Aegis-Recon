@@ -206,6 +206,22 @@ class PureScanner:
                     open_ports.append({"port": port, "state": "open", "service": socket.getservbyport(port, 'tcp')})
         return open_ports
 
+    def scan_osint(self, domain: str) -> Dict:
+        """Harverst emails/info from public main page"""
+        emails = set()
+        try:
+             resp = self.session.get(f"http://{domain}", timeout=5)
+             # Regex for emails
+             import re
+             found = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', resp.text)
+             for email in found:
+                 # Filter out binary garbage or default placeholders
+                 if len(email) < 50 and 'example.com' not in email:
+                     emails.add(email)
+        except: pass
+        
+        return {"emails": list(emails), "hosts": []}
+
     def detect_tech(self, host: str) -> Dict:
         summary = {"web_servers": [], "cms": [], "security": []}
         try:
