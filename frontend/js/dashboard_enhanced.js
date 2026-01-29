@@ -733,7 +733,7 @@ async function generateAIReport(jobId) {
         contentDiv.innerHTML = `
             <div class="card shadow-sm border-primary">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="bi bi-robot"></i> AI Threat Report (${data.model})</h5>
+                    <h5 class="mb-0"><i class="bi bi-shield-fill-check"></i> Security Threat Report</h5>
                 </div>
                 <div class="card-body">
                     ${html}
@@ -816,15 +816,17 @@ function displayHosts(hosts) {
             <div class="host-body">
         `;
 
-        // --- 2. Tech Stack Integration (Merged here for cleaner UI) ---
-        // (We check if this host has tech data attached to it)
-        const tech = hostData.technologies?.summary || hostData.technologies;
+        // --- 2. Tech Stack Integration ---
+        // Handle both structures: host.technologies OR host.technologies.summary
+        let tech = hostData.technologies || {};
+        if (tech.summary) {
+            tech = tech.summary; // If nested
+        }
         
         // Check if we actually have tech data to show
         let hasTechData = false;
-        if (tech) {
-            // Check if any known category has items
-            const categories = ['web_servers', 'cms', 'programming_languages', 'frameworks', 'security', 'languages'];
+        const categories = ['web_servers', 'cms', 'programming_languages', 'frameworks', 'security', 'languages'];
+        if (tech && typeof tech === 'object') {
             hasTechData = categories.some(cat => tech[cat] && tech[cat].length > 0);
         }
 
@@ -839,19 +841,21 @@ function displayHosts(hosts) {
             const renderTech = (list, icon, type) => {
                 if (!list || list.length === 0) return '';
                 return list.map(t => `
-                    <div class="tech-icon-box">
-                        <i class="${icon}"></i> 
-                        <span class="opacity-75 small me-1">${type}:</span>
-                        <strong>${t}</strong>
+                    <div class="tech-item">
+                        <i class="${icon}"></i>
+                        <div class="tech-info">
+                            <div class="tech-label">${type}</div>
+                            <div class="tech-value">${t}</div>
+                        </div>
                     </div>
                 `).join('');
             };
 
             html += renderTech(tech.web_servers, 'bi bi-server', 'Server');
-            html += renderTech(tech.cms, 'bi bi-layout-text-window-reverse', 'CMS');
-            html += renderTech(tech.programming_languages || tech.languages, 'bi bi-code-slash', 'Lang');
-            html += renderTech(tech.frameworks, 'bi bi-boxes', 'Frame');
-            html += renderTech(tech.security, 'bi bi-shield-lock', 'Sec');
+            html += renderTech(tech.cms, 'bi bi-wordpress', 'CMS');
+            html += renderTech(tech.programming_languages || tech.languages, 'bi bi-code-slash', 'Language');
+            html += renderTech(tech.frameworks, 'bi bi-boxes', 'Framework');
+            html += renderTech(tech.security, 'bi bi-shield-lock', 'Security');
             
             html += `</div></div>`;
         }

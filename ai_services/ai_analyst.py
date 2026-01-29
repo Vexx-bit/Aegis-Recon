@@ -47,38 +47,61 @@ class AIAnalyst:
     def generate_prompt(self, data: Dict[str, Any]) -> str:
         """Construct a concise prompt for the LLM."""
         
-        # Extract key metrics to reduce token usage
-        target = data.get('target', 'Unknown')
-        phases = data.get('results', {}).get('phases', {})
+        # Handle both direct results and nested results structure
+        if 'results' in data:
+            phases = data.get('results', {}).get('phases', {})
+            target = data.get('results', {}).get('target', data.get('target', 'Unknown'))
+            timestamp = data.get('results', {}).get('timestamp', 'N/A')
+        else:
+            phases = data.get('phases', {})
+            target = data.get('target', 'Unknown')
+            timestamp = data.get('timestamp', 'N/A')
         
-        # Summarize hosts
+        # Summarize hosts with technology details
         hosts_summary = []
         for host in phases.get('hosts', []):
             vulns = len(host.get('vulnerabilities', []))
-            outdated = len(host.get('whatweb', {}).get('outdated_technologies', []))
-            tech = ", ".join(host.get('technologies', {}).get('summary', {}).get('web_servers', []))
-            hosts_summary.append(f"- {host['host']}: {vulns} vulns, {outdated} outdated apps. Tech: {tech}")
             
-        # Summarize OSINT
-        emails = len(phases.get('osint', {}).get('emails', []))
+            # Get technology info properly
+            tech_data = host.get('technologies', {})
+            if isinstance(tech_data, dict):
+                servers = tech_data.get('web_servers', [])
+                if not servers:
+                    servers = tech_data.get('summary', {}).get('web_servers', [])
+                tech = ", ".join(servers) if servers else "Unknown"
+            else:
+                tech = "Unknown"
+                
+            # Get open ports
+            ports = host.get('ports', [])
+            port_list = [str(p.get('port', '')) for p in ports[:5]] if ports else []
+            
+            hosts_summary.append(f"- {host.get('host', 'Unknown')}: {vulns} vulnerabilities, Tech: {tech}, Open Ports: {', '.join(port_list) or 'None detected'}")
+            
+        # Get actual email addresses
+        email_list = phases.get('osint', {}).get('emails', [])
+        emails_str = ", ".join(email_list) if email_list else "None found"
         
         # Construct the context
         context = f"""
 Target: {target}
-Scan Date: {data.get('results', {}).get('timestamp')}
-Emails Found: {emails}
+Scan Date: {timestamp}
+Emails Found: {len(email_list)} ({emails_str})
 Hosts Scanned:
-{chr(10).join(hosts_summary)}
+{chr(10).join(hosts_summary) if hosts_summary else 'No hosts scanned'}
 
 Top Vulnerabilities (Sample):
 """
-        # Add a few vulnerability details if they exist
+        # Add vulnerability details if they exist
         count = 0
         for host in phases.get('hosts', []):
             for vuln in host.get('vulnerabilities', []):
                 if count < 5:
-                    context += f"- [{host['host']}] {vuln.get('msg')}\n"
+                    context += f"- [{host.get('host', 'Unknown')}] {vuln.get('msg', vuln.get('title', 'Unknown vulnerability'))}\n"
                     count += 1
+        
+        if count == 0:
+            context += "No critical vulnerabilities detected.\n"
         
         return f"""
 You are a Senior Cybersecurity Analyst for Aegis Recon. 
