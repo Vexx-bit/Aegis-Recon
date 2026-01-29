@@ -293,17 +293,23 @@ async function pollStatus() {
             throw new Error(data.error || 'Failed to get status');
         }
         
-        // Update status with progress data
-        updateStatus(data.status, data.progress);
+        // Normalize status - Python scanner uses 'finished', frontend expects 'done'
+        let normalizedStatus = data.status;
+        if (normalizedStatus === 'finished') {
+            normalizedStatus = 'done';
+        }
         
-        // If done, fetch results
-        if (data.status === 'done') {
+        // Update status with progress data
+        updateStatus(normalizedStatus, data.progress);
+        
+        // If done/finished, fetch results
+        if (normalizedStatus === 'done') {
             clearInterval(pollingInterval);
             await fetchResults();
         }
         
         // If error, stop polling
-        if (data.status === 'error') {
+        if (data.status === 'error' || data.status === 'failed') {
             clearInterval(pollingInterval);
             showAlert('Scan failed: ' + (data.error_message || 'Unknown error'), 'danger');
         }
