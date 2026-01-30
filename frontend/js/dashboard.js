@@ -244,10 +244,10 @@ function displayResults(results) {
     
     const phases = results.phases;
     
-    // Update stats
-    document.getElementById('statSubdomains').textContent = phases.subdomains?.length || 0;
-    document.getElementById('statHosts').textContent = phases.hosts?.length || 0;
-    document.getElementById('statEmails').textContent = phases.osint?.emails?.length || 0;
+    // Update stats with animation
+    animateNumber('statSubdomains', phases.subdomains?.length || 0);
+    animateNumber('statHosts', phases.hosts?.length || 0);
+    animateNumber('statEmails', phases.osint?.emails?.length || 0);
     
     // Calculate threats
     let threatCount = 0;
@@ -256,7 +256,11 @@ function displayResults(results) {
             if ([21, 22, 23, 3389, 5900].includes(port)) threatCount++;
         });
     });
-    document.getElementById('statVulns').textContent = threatCount;
+    animateNumber('statVulns', threatCount);
+    
+    // Display security score
+    const score = results.security_score || 100;
+    displaySecurityScore(score);
     
     // Display hosts
     displayHosts(phases.hosts || []);
@@ -266,6 +270,91 @@ function displayResults(results) {
     
     // Display OSINT
     displayOSINT(phases.osint || {});
+    
+    // Enable export button
+    const exportBtn = document.getElementById('exportJsonBtn');
+    if (exportBtn) {
+        exportBtn.disabled = false;
+        exportBtn.onclick = () => exportJSON(results);
+    }
+}
+
+/**
+ * Animate number counting
+ */
+function animateNumber(elementId, target) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    const duration = 800;
+    const start = 0;
+    const increment = target / (duration / 16);
+    let current = start;
+    
+    const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) {
+            element.textContent = target;
+            clearInterval(timer);
+        } else {
+            element.textContent = Math.floor(current);
+        }
+    }, 16);
+}
+
+/**
+ * Display security score with animated progress
+ */
+function displaySecurityScore(score) {
+    const section = document.getElementById('securityScoreSection');
+    const scoreValue = document.getElementById('securityScoreValue');
+    const progressBar = document.getElementById('scoreProgressBar');
+    
+    if (!section || !scoreValue || !progressBar) return;
+    
+    section.style.display = 'block';
+    
+    // Animate score
+    let current = 0;
+    const timer = setInterval(() => {
+        current += 2;
+        if (current >= score) {
+            scoreValue.textContent = score + '/100';
+            progressBar.style.width = score + '%';
+            clearInterval(timer);
+        } else {
+            scoreValue.textContent = current + '/100';
+            progressBar.style.width = current + '%';
+        }
+    }, 20);
+    
+    // Update color based on score
+    if (score >= 80) {
+        progressBar.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+    } else if (score >= 60) {
+        progressBar.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+    } else if (score >= 40) {
+        progressBar.style.background = 'linear-gradient(90deg, #f97316, #fb923c)';
+    } else {
+        progressBar.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+    }
+}
+
+/**
+ * Export results as JSON
+ */
+function exportJSON(results) {
+    const dataStr = JSON.stringify(results, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aegis-recon-${results.target}-${Date.now()}.json`;
+    a.click();
+    
+    URL.revokeObjectURL(url);
+    showAlert('Results exported successfully!', 'success');
 }
 
 /**
@@ -276,36 +365,63 @@ function displayHosts(hosts) {
     
     if (!hosts || hosts.length === 0) {
         container.innerHTML = `
-            <div class="text-center py-4 text-muted">
-                <i class="bi bi-server fs-2"></i>
-                <p class="mt-2 mb-0">No active hosts found</p>
+            <div class="empty-state">
+                <i class="bi bi-server"></i>
+                <h5 style="color: #94a3b8;">No Active Hosts</h5>
+                <p class="mb-0">No responsive hosts were detected</p>
             </div>
         `;
         return;
     }
     
+    // Port service names
+    const portServices = {
+        21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
+        80: 'HTTP', 443: 'HTTPS', 3306: 'MySQL', 3389: 'RDP',
+        5432: 'PostgreSQL', 5900: 'VNC', 8080: 'HTTP-ALT', 8443: 'HTTPS-ALT'
+    };
+    
     let html = '<div class="host-list">';
     
-    hosts.forEach(host => {
+    hosts.forEach((host, index) => {
         const portBadges = (host.ports || []).map(port => {
-            const portClass = [21, 22, 23, 3389].includes(port) ? 'bg-warning' : 'bg-primary';
-            return `<span class="badge ${portClass} me-1">${port}</span>`;
+            const isRisky = [21, 22, 23, 3389, 5900].includes(port);
+            const service = portServices[port] || 'PORT';
+            const badgeClass = isRisky ? 'bg-warning' : 'bg-primary';
+            const icon = isRisky ? '<i class="bi bi-exclamation-triangle-fill me-1"></i>' : '';
+            return `<span class="badge ${badgeClass} me-1">${icon}${port} <small style="opacity: 0.7">${service}</small></span>`;
         }).join('');
         
-        const geoInfo = host.geo ? `${host.geo.city || ''}, ${host.geo.country || ''}`.trim().replace(/^,\s*/, '') : '';
+        // Geo info
+        let geoHtml = '';
+        if (host.geo && (host.geo.city || host.geo.country)) {
+            const location = [host.geo.city, host.geo.country].filter(Boolean).join(', ');
+            geoHtml = `<span class="geo-badge"><i class="bi bi-geo-alt-fill"></i> ${location}</span>`;
+        }
+        
+        // Org info
+        let orgHtml = '';
+        if (host.geo && host.geo.org) {
+            orgHtml = `<div class="text-muted small mt-1" style="font-size: 0.7rem;"><i class="bi bi-building"></i> ${host.geo.org}</div>`;
+        }
         
         html += `
-            <div class="host-item p-3 mb-2 rounded border" style="background: #f8fafc;">
+            <div class="host-item fade-in" style="animation-delay: ${index * 0.1}s">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <strong class="text-dark">${host.hostname}</strong>
-                        <div class="text-muted small">${host.ip}</div>
-                        ${geoInfo ? `<div class="text-muted small"><i class="bi bi-geo-alt"></i> ${geoInfo}</div>` : ''}
+                        <strong>${host.hostname}</strong>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <code style="font-size: 0.8rem; color: #94a3b8; background: rgba(0,0,0,0.2); padding: 0.1rem 0.4rem; border-radius: 4px;">${host.ip}</code>
+                            ${geoHtml}
+                        </div>
+                        ${orgHtml}
                     </div>
-                    <span class="badge ${host.status === 'up' ? 'bg-success' : 'bg-secondary'}">${host.status}</span>
+                    <span class="badge ${host.status === 'up' ? 'bg-success' : 'bg-secondary'}">
+                        <i class="bi ${host.status === 'up' ? 'bi-check-circle' : 'bi-x-circle'}"></i> ${host.status}
+                    </span>
                 </div>
                 <div class="mt-2">
-                    ${portBadges || '<span class="text-muted small">No open ports</span>'}
+                    ${portBadges || '<span class="text-muted small"><i class="bi bi-shield-check"></i> No open ports detected</span>'}
                 </div>
             </div>
         `;
