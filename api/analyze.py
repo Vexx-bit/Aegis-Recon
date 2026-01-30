@@ -1,4 +1,16 @@
 """
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                            AEGIS RECON                                     ║
+║              Advanced Threat Intelligence System                           ║
+╠═══════════════════════════════════════════════════════════════════════════╣
+║  Author: VexSpitta                                                         ║
+║  GitHub: https://github.com/Vexx-bit                                       ║
+║  Project: https://github.com/Vexx-bit/Aegis-Recon                         ║
+║                                                                            ║
+║  © 2024-2026 VexSpitta. All Rights Reserved.                              ║
+║  Unauthorized copying, modification, or distribution is prohibited.       ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
 Aegis Recon - GROQ AI Analysis Endpoint
 Generates threat intelligence reports using GROQ API
 """
