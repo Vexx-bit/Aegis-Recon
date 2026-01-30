@@ -699,18 +699,40 @@ function downloadReportPDF() {
     else if (score >= 40) { riskLevel = 'HIGH RISK'; riskColor = '#f97316'; }
     else { riskLevel = 'CRITICAL RISK'; riskColor = '#ef4444'; }
     
-    // Create PDF container (hidden, A4 width = 210mm)
-    // We use a slightly smaller width effectively to ensure margins work nicely
+    // Create PDF container (hidden)
+    // 794px is the standard pixel width for A4 at 96 DPI. Setting this explicitly helps 
+    // align the HTML layout with the PDF page, reducing weird scaling artifacts.
     const pdfContainer = document.createElement('div');
     pdfContainer.id = 'pdf-export-container';
-    pdfContainer.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 210mm; background: white;';
+    pdfContainer.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 794px; background: white;';
     
-    // Professional Document Template
+    // Professional Document Template with Smart CSS for Page Breaks
     pdfContainer.innerHTML = `
-        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111; padding: 15mm 20mm; font-size: 11pt; line-height: 1.5; box-sizing: border-box;">
+        <style>
+            .pdf-container { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111; font-size: 11pt; line-height: 1.5; }
+            .header-section { margin-bottom: 30px; border-bottom: 2px solid #0f172a; padding-bottom: 15px; }
+            .summary-grid { display: flex; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 20px; margin-bottom: 30px; break-inside: avoid; page-break-inside: avoid; }
+            .summary-item { flex: 1; padding: 0 15px; border-right: 1px solid #e2e8f0; text-align: center; }
+            .summary-item:first-child { padding-left: 0; text-align: left; }
+            .summary-item:last-child { padding-right: 0; border-right: none; text-align: right; }
+            
+            /* Typography & Spacing */
+            h2 { font-size: 14pt; font-weight: 700; color: #0f172a; margin: 25px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #cbd5e1; page-break-after: avoid; break-after: avoid; }
+            h3 { font-size: 12pt; font-weight: 600; color: #334155; margin: 15px 0 8px 0; page-break-after: avoid; break-after: avoid; }
+            p { margin-bottom: 10px; color: #334155; text-align: justify; page-break-inside: avoid; break-inside: avoid; }
+            
+            /* Avoid splitting list items */
+            .list-item { margin: 4px 0; padding-left: 15px; position: relative; page-break-inside: avoid; break-inside: avoid; }
+            .list-bullet { position: absolute; left: 0; color: #64748b; }
+            
+            /* Footer */
+            .footer { margin-top: 50px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 8pt; color: #94a3b8; display: flex; justify-content: space-between; page-break-inside: avoid; }
+        </style>
+
+        <div class="pdf-container">
             
             <!-- HEADER -->
-            <div style="border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 30px;">
+            <div class="header-section">
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
                         <td style="vertical-align: bottom;">
@@ -726,23 +748,19 @@ function downloadReportPDF() {
             </div>
             
             <!-- EXECUTIVE SUMMARY GRID -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 20px; margin-bottom: 30px;">
-                <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                        <td style="width: 33%; padding-right: 20px; border-right: 1px solid #e2e8f0;">
-                            <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 5px;">Target Domain</div>
-                            <div style="font-size: 12pt; font-weight: 600; color: #0f172a; word-break: break-all;">${target}</div>
-                        </td>
-                        <td style="width: 33%; padding: 0 20px; text-align: center; border-right: 1px solid #e2e8f0;">
-                            <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 5px;">Security Score</div>
-                            <div style="font-size: 24pt; font-weight: 700; color: ${riskColor}; line-height: 1;">${score}</div>
-                        </td>
-                        <td style="width: 33%; padding-left: 20px; text-align: right;">
-                            <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 5px;">Risk Level</div>
-                            <div style="display: inline-block; background: ${riskColor}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 9pt; font-weight: 600;">${riskLevel}</div>
-                        </td>
-                    </tr>
-                </table>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 5px;">Target Domain</div>
+                    <div style="font-size: 12pt; font-weight: 600; color: #0f172a; word-break: break-all;">${target}</div>
+                </div>
+                <div class="summary-item">
+                    <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 5px;">Security Score</div>
+                    <div style="font-size: 24pt; font-weight: 700; color: ${riskColor}; line-height: 1;">${score}</div>
+                </div>
+                <div class="summary-item">
+                    <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 5px;">Risk Level</div>
+                    <div style="display: inline-block; background: ${riskColor}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 9pt; font-weight: 600;">${riskLevel}</div>
+                </div>
             </div>
             
             <!-- REPORT CONTENT -->
@@ -750,10 +768,10 @@ function downloadReportPDF() {
                 ${formatReportForPDF(reportContent)}
             </div>
             
-            <!-- FOOTER -->
-            <div style="margin-top: 50px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 8pt; color: #94a3b8; display: flex; justify-content: space-between;">
+            <!-- FOOTER (Will appear at end of doc) -->
+            <div class="footer">
                 <div>Aegis Recon v${AUTHOR.version} &bull; Generated by AI Analysis</div>
-                <div>Page 1 of 1</div>
+                <div>${new Date().getFullYear()}</div>
             </div>
             
         </div>
@@ -761,15 +779,15 @@ function downloadReportPDF() {
     
     document.body.appendChild(pdfContainer);
     
-    // High-Quality PDF Options
+    // High-Quality PDF Options with Margins
     const options = {
-        margin: 0, // We handle margins with CSS padding inside the container
+        margin: [15, 15, 15, 15], // Top, Left, Bottom, Right (mm) - Real margins
         filename: `Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`,
-        image: { type: 'jpeg', quality: 1.0 }, // Max quality
+        image: { type: 'jpeg', quality: 1.0 },
         html2canvas: { 
-            scale: 3, // 3x resolution for crisp text (High DPI)
+            scale: 2, // 2 is usually sufficient for print-quality 96dpi->pdf mapping
             useCORS: true, 
-            letterRendering: true, // Better text rendering
+            letterRendering: true,
             logging: false,
             backgroundColor: '#ffffff'
         },
@@ -778,17 +796,18 @@ function downloadReportPDF() {
             format: 'a4', 
             orientation: 'portrait' 
         },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        // 'css' mode respects page-break-before/after/inside CSS properties
+        pagebreak: { mode: ['css', 'legacy'] } 
     };
     
     // Generate PDF
     html2pdf()
         .set(options)
-        .from(pdfContainer.firstElementChild) // Target the inner div which has the padding
+        .from(pdfContainer.firstElementChild)
         .save()
         .then(() => {
             pdfContainer.remove();
-            showAlert('✓ High-Quality PDF Downloaded!', 'success');
+            showAlert('✓ Report Downloaded', 'success');
         })
         .catch(err => {
             pdfContainer.remove();
@@ -798,37 +817,37 @@ function downloadReportPDF() {
 }
 
 /**
- * Format markdown report content for PDF - clean professional style
+ * Format markdown report content for PDF - Structure for Page Breaks
  */
 function formatReportForPDF(markdown) {
     if (!markdown) return '<p>No content available</p>';
     
     let html = markdown
-        // Headers - Clean Professional Look
-        .replace(/^## (.*$)/gim, '<h2 style="font-size: 14pt; font-weight: 700; color: #0f172a; margin: 25px 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #cbd5e1;">$1</h2>')
-        .replace(/^### (.*$)/gim, '<h3 style="font-size: 12pt; font-weight: 600; color: #334155; margin: 15px 0 8px 0;">$1</h3>')
+        // Replace Headers - Note the simple tags, styling is in the <style> block now
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
         
         // Bold text
         .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #0f172a; font-weight: 600;">$1</strong>')
         
-        // Risk indicators (Unicode characters render reliably)
+        // Risk indicators
         .replace(/🟢/g, '<span style="color: #10b981;">●</span>')
         .replace(/🟡/g, '<span style="color: #f59e0b;">●</span>')
         .replace(/🟠/g, '<span style="color: #f97316;">●</span>')
         .replace(/🔴/g, '<span style="color: #ef4444;">●</span>')
         .replace(/⚠️/g, '<span style="color: #f59e0b;">▲</span>')
         
-        // Lists - Clean indentation
-        .replace(/^- (.*$)/gim, '<div style="margin: 4px 0 4px 0; padding-left: 15px; position: relative;"><span style="position: absolute; left: 0; color: #64748b;">•</span>$1</div>')
+        // Lists - Wrap in div with class for page-break avoidance
+        .replace(/^- (.*$)/gim, '<div class="list-item"><span class="list-bullet">•</span>$1</div>')
         
-        // Code terms - Subtle highlighting
+        // Code terms
         .replace(/`(.*?)`/g, '<span style="background: #f1f5f9; color: #475569; padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 0.95em;">$1</span>')
         
-        // Paragraphs
-        .replace(/\n\n/g, '</p><p style="margin-bottom: 10px; color: #334155;">')
+        // Paragraphs - Ensure they are standard <p> tags
+        .replace(/\n\n/g, '</p><p>')
         .replace(/\n/g, '<br>');
     
-    html = '<p style="margin-bottom: 10px; color: #334155;">' + html + '</p>';
+    html = '<p>' + html + '</p>';
     
     return html;
 }
