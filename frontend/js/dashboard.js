@@ -1,58 +1,37 @@
 /**
- * Aegis Recon - Dashboard JavaScript
- * Vanilla JS implementation for scan management and results visualization
+ * Aegis Recon - Dashboard JavaScript (Vercel Edition)
+ * Simplified for serverless architecture - no polling needed
  */
 
 // Configuration
-const API_BASE_URL = '../backend/api.php';
-let currentJobId = null;
-let currentApiKey = null;
-let statusPollInterval = null;
-let hostsDataTable = null;
+const API_BASE_URL = window.AEGIS_CONFIG?.apiBaseUrl || '/api';
+
+// State
+let currentResults = null;
 
 // DOM Elements
 const scanForm = document.getElementById('scanForm');
 const domainInput = document.getElementById('domainInput');
-const apiKeyInput = document.getElementById('apiKeyInput');
 const startScanBtn = document.getElementById('startScanBtn');
+const alertContainer = document.getElementById('alertContainer');
 const statusSection = document.getElementById('statusSection');
-const resultsSection = document.getElementById('resultsSection');
-const jobIdDisplay = document.getElementById('jobIdDisplay');
-const targetDisplay = document.getElementById('targetDisplay');
-const statusDisplay = document.getElementById('statusDisplay');
-const progressBar = document.getElementById('progressBar');
 const statusMessage = document.getElementById('statusMessage');
-const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+const progressBar = document.getElementById('progressBar');
+const targetDisplay = document.getElementById('targetDisplay');
+const resultsSection = document.getElementById('resultsSection');
 const newScanBtn = document.getElementById('newScanBtn');
 
-/**
- * Initialize dashboard
- */
-document.addEventListener('DOMContentLoaded', function() {
-    // Load saved API key if exists
-    const savedApiKey = localStorage.getItem('aegis_api_key');
-    if (savedApiKey) {
-        apiKeyInput.value = savedApiKey;
-    }
-    
-    // Event listeners
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
     scanForm.addEventListener('submit', handleScanSubmit);
-    downloadPdfBtn.addEventListener('click', handleDownloadPdf);
     newScanBtn.addEventListener('click', resetDashboard);
     
-    console.log('Dashboard initialized');
+    // Report button
+    const reportBtn = document.getElementById('generateReportBtn');
+    if (reportBtn) {
+        reportBtn.addEventListener('click', generateReport);
+    }
 });
-
-/**
- * Hash email to generate user_id
- */
-async function hashEmail(email) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(email);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 /**
  * Handle scan form submission
@@ -61,211 +40,77 @@ async function handleScanSubmit(e) {
     e.preventDefault();
     
     const domain = domainInput.value.trim();
-    const apiKey = apiKeyInput.value.trim();
-    
-    if (!domain || !apiKey) {
-        showAlert('Please enter both domain and API key', 'danger');
+    if (!domain) {
+        showAlert('Please enter a domain', 'warning');
         return;
     }
     
-    // Get or prompt for user email
-    let userEmail = localStorage.getItem('user_email');
-    if (!userEmail) {
-        userEmail = prompt('Please enter your email address for consent tracking:');
-        if (!userEmail || !userEmail.includes('@')) {
-            showAlert('Valid email address is required', 'danger');
-            return;
-        }
-        localStorage.setItem('user_email', userEmail);
-    }
+    // Clean domain
+    const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     
-    // Generate user_id from email
-    const userId = await hashEmail(userEmail);
-    
-    // Save API key
-    localStorage.setItem('aegis_api_key', apiKey);
-    currentApiKey = apiKey;
-    
-    // Disable form
+    // Update UI
     startScanBtn.disabled = true;
-    startScanBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Starting scan...';
+    startScanBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
+    
+    // Show status
+    statusSection.classList.remove('hidden');
+    targetDisplay.textContent = cleanDomain;
+    statusMessage.innerHTML = '<i class="bi bi-gear-fill"></i> Scanning in progress...';
+    progressBar.style.width = '30%';
+    
+    // Show scanning badge in header
+    const statusDisplay = document.getElementById('statusDisplay');
+    if (statusDisplay) statusDisplay.style.display = 'inline-block';
     
     try {
-        // Call enqueue endpoint
-        const response = await fetch(`${API_BASE_URL}?action=enqueue`, {
+        console.log('[SCAN] Starting scan for:', cleanDomain);
+        
+        // Call Vercel serverless API
+        const response = await fetch(`${API_BASE_URL}/scan`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'X-API-KEY': apiKey
+                'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
-                domain: domain,
-                user_id: userId  // Include user_id
-            })
+            body: JSON.stringify({ domain: cleanDomain })
         });
         
-        const data = await response.json();
-        
-        if (!response.ok || !data.success) {
-            // Check if consent is required
-            if (data.error_code === 'CONSENT_REQUIRED') {
-                showAlert('Consent required! Redirecting to consent form...', 'warning');
-                setTimeout(() => {
-                    window.location.href = 'consent.php?domain=' + encodeURIComponent(domain);
-                }, 2000);
-                return;
-            }
-            throw new Error(data.error || 'Failed to start scan');
-        }
-        
-        // Store job ID and start monitoring
-        currentJobId = data.job_id;
-        
-        // Show status section
-        showStatusSection(data);
-        
-        // Start polling for status
-        startStatusPolling();
-        
-        showAlert('Scan started successfully!', 'success');
-        
-    } catch (error) {
-        console.error('Error starting scan:', error);
-        showAlert('Error: ' + error.message, 'danger');
-        startScanBtn.disabled = false;
-        startScanBtn.innerHTML = '<i class="bi bi-play-circle"></i> Start Scan';
-    }
-}
-
-/**
- * Show status section with initial data
- */
-function showStatusSection(data) {
-    statusSection.classList.remove('hidden');
-    jobIdDisplay.textContent = data.job_id;
-    targetDisplay.textContent = data.target;
-    updateStatus(data.status);
-    
-    // Scroll to status section
-    statusSection.scrollIntoView({ behavior: 'smooth' });
-}
-
-/**
- * Start polling for scan status
- */
-function startStatusPolling() {
-    // Clear any existing interval
-    if (statusPollInterval) {
-        clearInterval(statusPollInterval);
-    }
-    
-    // Poll every 3 seconds
-    statusPollInterval = setInterval(checkScanStatus, 3000);
-    
-    // Check immediately
-    checkScanStatus();
-}
-
-/**
- * Check scan status
- */
-async function checkScanStatus() {
-    if (!currentJobId || !currentApiKey) return;
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}?action=status&job_id=${currentJobId}`, {
-            headers: {
-                'X-API-KEY': currentApiKey
-            }
-        });
+        progressBar.style.width = '70%';
         
         const data = await response.json();
+        console.log('[SCAN] Response:', data);
         
         if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Failed to get status');
+            throw new Error(data.error || 'Scan failed');
         }
         
-        // Update status display
-        updateStatus(data.status);
+        progressBar.style.width = '100%';
+        statusMessage.innerHTML = '<i class="bi bi-check-circle-fill"></i> Scan complete!';
         
-        // Check if scan is complete
-        if (data.status === 'done' || data.status === 'completed') {
-            clearInterval(statusPollInterval);
-            progressBar.style.width = '100%';
-            progressBar.classList.remove('progress-bar-animated');
-            statusMessage.textContent = 'Scan completed! Loading results...';
-            
-            // Fetch and display results
-            setTimeout(() => fetchResults(), 1000);
-        } else if (data.status === 'error' || data.status === 'failed') {
-            clearInterval(statusPollInterval);
-            progressBar.classList.remove('progress-bar-animated');
-            progressBar.classList.add('bg-danger');
-            statusMessage.textContent = 'Scan failed: ' + (data.error_message || 'Unknown error');
-        }
-        
-    } catch (error) {
-        console.error('Error checking status:', error);
-        statusMessage.textContent = 'Error checking status: ' + error.message;
-    }
-}
-
-/**
- * Update status display
- */
-function updateStatus(status) {
-    let badgeClass = 'status-queued';
-    let progressWidth = '25%';
-    let message = 'Scan queued...';
-    
-    switch (status) {
-        case 'running':
-            badgeClass = 'status-running';
-            progressWidth = '50%';
-            message = 'Scanning in progress... This may take several minutes.';
-            break;
-        case 'done':
-        case 'completed':
-            badgeClass = 'status-done';
-            progressWidth = '100%';
-            message = 'Scan completed successfully!';
-            break;
-        case 'error':
-        case 'failed':
-            badgeClass = 'status-error';
-            progressWidth = '100%';
-            message = 'Scan failed. Please check the logs.';
-            break;
-    }
-    
-    statusDisplay.innerHTML = `<span class="status-badge ${badgeClass}">${status.toUpperCase()}</span>`;
-    progressBar.style.width = progressWidth;
-    statusMessage.textContent = message;
-}
-
-/**
- * Fetch and display scan results
- */
-async function fetchResults() {
-    try {
-        const response = await fetch(`${API_BASE_URL}?action=result&job_id=${currentJobId}`, {
-            headers: {
-                'X-API-KEY': currentApiKey
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Failed to get results');
-        }
-        
-        // Display results
+        // Store and display results
+        currentResults = data.results;
         displayResults(data.results);
         
+        // Hide status after brief delay
+        setTimeout(() => {
+            statusSection.classList.add('hidden');
+            if (statusDisplay) statusDisplay.style.display = 'none';
+        }, 1500);
+        
+        // Show new scan button
+        newScanBtn.style.display = 'inline-block';
+        
+        // Enable report button
+        const reportBtn = document.getElementById('generateReportBtn');
+        if (reportBtn) reportBtn.disabled = false;
+        
     } catch (error) {
-        console.error('Error fetching results:', error);
-        showAlert('Error loading results: ' + error.message, 'danger');
+        console.error('[SCAN] Error:', error);
+        showAlert('Scan failed: ' + error.message, 'danger');
+        statusMessage.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + error.message;
+        progressBar.classList.add('bg-danger');
+    } finally {
+        startScanBtn.disabled = false;
+        startScanBtn.innerHTML = '<i class="bi bi-search"></i> Scan';
     }
 }
 
@@ -273,367 +118,311 @@ async function fetchResults() {
  * Display scan results
  */
 function displayResults(results) {
-    // Show results section
-    resultsSection.classList.remove('hidden');
-    resultsSection.scrollIntoView({ behavior: 'smooth' });
+    if (!results || !results.phases) {
+        console.warn('[DISPLAY] No results to display');
+        return;
+    }
     
-    // Calculate risk score
-    const riskScore = calculateRiskScore(results);
+    const phases = results.phases;
     
-    // Display executive summary
-    displayExecutiveSummary(results, riskScore);
+    // Update stats
+    document.getElementById('statSubdomains').textContent = phases.subdomains?.length || 0;
+    document.getElementById('statHosts').textContent = phases.hosts?.length || 0;
+    document.getElementById('statEmails').textContent = phases.osint?.emails?.length || 0;
     
-    // Display statistics
-    displayStatistics(results, riskScore);
+    // Calculate threats (ports on non-standard services)
+    let threatCount = 0;
+    (phases.hosts || []).forEach(host => {
+        (host.ports || []).forEach(port => {
+            if ([21, 22, 23, 3389, 5900].includes(port)) threatCount++;
+        });
+    });
+    document.getElementById('statVulns').textContent = threatCount;
     
-    // Display charts
-    displayCharts(results);
+    // Display hosts
+    displayHosts(phases.hosts || []);
     
-    // Display hosts table
-    displayHostsTable(results.hosts);
+    // Display technologies
+    displayTechnologies(phases.technologies || []);
     
-    // Display vulnerabilities
-    displayVulnerabilities(results.hosts);
+    // Display OSINT
+    displayOSINT(phases.osint || {});
 }
 
 /**
- * Calculate risk score based on findings
+ * Display hosts list
  */
-function calculateRiskScore(results) {
-    let score = 0;
+function displayHosts(hosts) {
+    const container = document.getElementById('hostsContent');
     
-    const totalVulns = results.metadata.total_vulnerabilities || 0;
-    const totalPorts = results.metadata.total_ports || 0;
+    if (!hosts || hosts.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-server fs-2"></i>
+                <p class="mt-2 mb-0">No active hosts found</p>
+            </div>
+        `;
+        return;
+    }
     
-    // Base score on vulnerabilities (0-70 points)
-    score += Math.min(totalVulns * 10, 70);
+    let html = '<div class="host-list">';
     
-    // Add points for open ports (0-30 points)
-    score += Math.min(totalPorts * 2, 30);
+    hosts.forEach(host => {
+        const portBadges = (host.ports || []).map(port => {
+            const portClass = [21, 22, 23, 3389].includes(port) ? 'bg-warning' : 'bg-primary';
+            return `<span class="badge ${portClass} me-1">${port}</span>`;
+        }).join('');
+        
+        const geoInfo = host.geo ? `${host.geo.city || ''}, ${host.geo.country || ''}`.trim() : '';
+        
+        html += `
+            <div class="host-item p-3 mb-2 rounded border" style="background: #f8fafc;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong class="text-dark">${host.hostname}</strong>
+                        <div class="text-muted small">${host.ip}</div>
+                        ${geoInfo ? `<div class="text-muted small"><i class="bi bi-geo-alt"></i> ${geoInfo}</div>` : ''}
+                    </div>
+                    <span class="badge ${host.status === 'up' ? 'bg-success' : 'bg-secondary'}">${host.status}</span>
+                </div>
+                <div class="mt-2">
+                    ${portBadges || '<span class="text-muted small">No open ports</span>'}
+                </div>
+            </div>
+        `;
+    });
     
-    return Math.min(score, 100);
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 /**
- * Display executive summary
+ * Display technologies
  */
-function displayExecutiveSummary(results, riskScore) {
-    const metadata = results.metadata;
-    const riskLevel = riskScore >= 70 ? 'CRITICAL' : riskScore >= 50 ? 'HIGH' : riskScore >= 30 ? 'MEDIUM' : 'LOW';
-    const riskClass = riskScore >= 70 ? 'risk-critical' : riskScore >= 50 ? 'risk-high' : riskScore >= 30 ? 'risk-medium' : 'risk-low';
+function displayTechnologies(technologies) {
+    const container = document.getElementById('technologyContent');
     
-    const summary = `
-        <h4>Scan Summary for <strong>${results.target}</strong></h4>
-        <p class="mb-3">Scan completed on ${new Date(metadata.scan_date).toLocaleString()}</p>
-        <div class="row">
-            <div class="col-md-6">
-                <p><strong>Overall Risk Level:</strong> <span class="${riskClass} fs-4">${riskLevel}</span></p>
-                <p><strong>Total Hosts Scanned:</strong> ${metadata.total_hosts}</p>
-                <p><strong>Total Open Ports:</strong> ${metadata.total_ports}</p>
-                <p><strong>Total Vulnerabilities:</strong> ${metadata.total_vulnerabilities}</p>
-            </div>
-            <div class="col-md-6">
-                <p><strong>Scanner Version:</strong> ${metadata.scanner_version}</p>
-                <p><strong>Scan Duration:</strong> ${calculateDuration(results)}</p>
-                <p><strong>Job ID:</strong> <code>${results.job_id}</code></p>
-            </div>
+    if (!technologies || technologies.length === 0) {
+        container.innerHTML = '<p class="text-muted small mb-0">No technologies detected</p>';
+        return;
+    }
+    
+    let html = '<div class="d-flex flex-wrap gap-2">';
+    
+    technologies.forEach(tech => {
+        const icon = getTechIcon(tech.name);
+        html += `
+            <span class="badge bg-light text-dark border" style="font-size: 0.8rem;">
+                <i class="bi ${icon}"></i> ${tech.name}
+            </span>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+/**
+ * Get icon for technology
+ */
+function getTechIcon(name) {
+    const icons = {
+        'wordpress': 'bi-wordpress',
+        'apache': 'bi-server',
+        'nginx': 'bi-server',
+        'cloudflare': 'bi-cloud',
+        'react': 'bi-code-slash',
+        'vue': 'bi-code-slash',
+        'angular': 'bi-code-slash',
+        'jquery': 'bi-code-slash',
+        'bootstrap': 'bi-grid',
+        'php': 'bi-filetype-php',
+        'node': 'bi-diagram-3',
+        'python': 'bi-filetype-py'
+    };
+    
+    const lowerName = name.toLowerCase();
+    for (const [key, icon] of Object.entries(icons)) {
+        if (lowerName.includes(key)) return icon;
+    }
+    return 'bi-cpu';
+}
+
+/**
+ * Display OSINT data
+ */
+function displayOSINT(osint) {
+    const container = document.getElementById('emailsList');
+    const emails = osint.emails || [];
+    
+    if (emails.length === 0) {
+        container.innerHTML = '<p class="text-muted small mb-0">No exposed emails found</p>';
+        return;
+    }
+    
+    let html = '<ul class="list-unstyled mb-0">';
+    
+    emails.forEach(email => {
+        html += `
+            <li class="d-flex align-items-center py-1">
+                <i class="bi bi-envelope text-danger me-2"></i>
+                <span class="small">${email}</span>
+            </li>
+        `;
+    });
+    
+    html += '</ul>';
+    container.innerHTML = html;
+}
+
+/**
+ * Generate AI threat report
+ */
+async function generateReport() {
+    if (!currentResults) {
+        showAlert('No scan results available', 'warning');
+        return;
+    }
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('reportModal'));
+    modal.show();
+    
+    // Reset modal content
+    document.getElementById('reportModalBody').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-3">Generating AI threat analysis...</p>
         </div>
-        <hr>
-        <p class="mb-0"><strong>Recommendation:</strong> ${getRecommendation(riskScore)}</p>
     `;
     
-    document.getElementById('executiveSummary').innerHTML = summary;
-}
-
-/**
- * Get recommendation based on risk score
- */
-function getRecommendation(score) {
-    if (score >= 70) {
-        return 'Immediate action required! Critical vulnerabilities detected that require urgent remediation.';
-    } else if (score >= 50) {
-        return 'High priority issues found. Schedule remediation within the next 7 days.';
-    } else if (score >= 30) {
-        return 'Medium risk detected. Plan remediation within the next 30 days.';
-    } else {
-        return 'Low risk profile. Continue monitoring and maintain security best practices.';
-    }
-}
-
-/**
- * Calculate scan duration
- */
-function calculateDuration(results) {
-    // This is a placeholder - actual duration would come from scan metadata
-    return 'N/A';
-}
-
-/**
- * Display statistics
- */
-function displayStatistics(results, riskScore) {
-    const riskClass = riskScore >= 70 ? 'risk-critical' : riskScore >= 50 ? 'risk-high' : riskScore >= 30 ? 'risk-medium' : 'risk-low';
-    
-    document.getElementById('riskScore').textContent = riskScore;
-    document.getElementById('riskScore').className = 'stat-number ' + riskClass;
-    document.getElementById('totalHosts').textContent = results.metadata.total_hosts;
-    document.getElementById('totalPorts').textContent = results.metadata.total_ports;
-    document.getElementById('totalVulns').textContent = results.metadata.total_vulnerabilities;
-}
-
-/**
- * Display charts
- */
-function displayCharts(results) {
-    // Port distribution chart
-    const portData = aggregatePortData(results.hosts);
-    createPortChart(portData);
-    
-    // Service distribution chart
-    const serviceData = aggregateServiceData(results.hosts);
-    createServiceChart(serviceData);
-}
-
-/**
- * Aggregate port data
- */
-function aggregatePortData(hosts) {
-    const portCounts = {};
-    
-    hosts.forEach(host => {
-        host.ports.forEach(port => {
-            const portNum = port.port;
-            portCounts[portNum] = (portCounts[portNum] || 0) + 1;
-        });
-    });
-    
-    // Get top 10 ports
-    const sorted = Object.entries(portCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-    
-    return {
-        labels: sorted.map(([port]) => `Port ${port}`),
-        data: sorted.map(([, count]) => count)
-    };
-}
-
-/**
- * Aggregate service data
- */
-function aggregateServiceData(hosts) {
-    const serviceCounts = {};
-    
-    hosts.forEach(host => {
-        host.ports.forEach(port => {
-            const service = port.service || 'unknown';
-            serviceCounts[service] = (serviceCounts[service] || 0) + 1;
-        });
-    });
-    
-    const sorted = Object.entries(serviceCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8);
-    
-    return {
-        labels: sorted.map(([service]) => service),
-        data: sorted.map(([, count]) => count)
-    };
-}
-
-/**
- * Create port distribution chart
- */
-function createPortChart(data) {
-    const ctx = document.getElementById('portChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Occurrences',
-                data: data.data,
-                backgroundColor: 'rgba(54, 162, 235, 0.7)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { display: false }
+    try {
+        const response = await fetch(`${API_BASE_URL}/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
             },
-            scales: {
-                y: { beginAtZero: true }
-            }
+            body: JSON.stringify({ results: currentResults })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to generate report');
         }
-    });
-}
-
-/**
- * Create service distribution chart
- */
-function createServiceChart(data) {
-    const ctx = document.getElementById('serviceChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                data: data.data,
-                backgroundColor: [
-                    'rgba(255, 99, 132, 0.7)',
-                    'rgba(54, 162, 235, 0.7)',
-                    'rgba(255, 206, 86, 0.7)',
-                    'rgba(75, 192, 192, 0.7)',
-                    'rgba(153, 102, 255, 0.7)',
-                    'rgba(255, 159, 64, 0.7)',
-                    'rgba(199, 199, 199, 0.7)',
-                    'rgba(83, 102, 255, 0.7)'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { position: 'right' }
-            }
-        }
-    });
-}
-
-/**
- * Display hosts table
- */
-function displayHostsTable(hosts) {
-    const tbody = document.getElementById('hostsTableBody');
-    tbody.innerHTML = '';
-    
-    hosts.forEach(host => {
-        const row = document.createElement('tr');
         
-        const portsHtml = host.ports.map(p => 
-            `<span class="port-badge port-open">${p.port}/${p.protocol}</span>`
-        ).join('');
+        // Display the report
+        displayReport(data.analysis);
         
-        const servicesHtml = host.ports.map(p => 
-            `<small>${p.service}${p.version ? ' ' + p.version : ''}</small>`
-        ).join('<br>');
-        
-        const vulnCount = host.web_vulns ? host.web_vulns.length : 0;
-        const vulnBadge = vulnCount > 0 
-            ? `<span class="badge bg-danger">${vulnCount}</span>` 
-            : '<span class="badge bg-success">0</span>';
-        
-        row.innerHTML = `
-            <td><strong>${host.host}</strong></td>
-            <td>${portsHtml}</td>
-            <td>${servicesHtml}</td>
-            <td>${vulnBadge}</td>
+    } catch (error) {
+        console.error('[REPORT] Error:', error);
+        document.getElementById('reportModalBody').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> ${error.message}
+            </div>
         `;
-        
-        tbody.appendChild(row);
-    });
-    
-    // Initialize DataTable
-    if (hostsDataTable) {
-        hostsDataTable.destroy();
-    }
-    
-    hostsDataTable = $('#hostsTable').DataTable({
-        pageLength: 10,
-        order: [[3, 'desc']]
-    });
-}
-
-/**
- * Display vulnerabilities
- */
-function displayVulnerabilities(hosts) {
-    const container = document.getElementById('vulnerabilitiesContainer');
-    container.innerHTML = '';
-    
-    let totalVulns = 0;
-    
-    hosts.forEach(host => {
-        if (host.web_vulns && host.web_vulns.length > 0) {
-            totalVulns += host.web_vulns.length;
-            
-            host.web_vulns.forEach(vuln => {
-                const vulnDiv = document.createElement('div');
-                vulnDiv.className = 'vuln-item';
-                vulnDiv.innerHTML = `
-                    <h6><i class="bi bi-exclamation-triangle-fill"></i> ${vuln.msg || 'Vulnerability detected'}</h6>
-                    <p class="mb-1"><strong>Host:</strong> ${host.host}</p>
-                    <p class="mb-1"><strong>URL:</strong> <code>${vuln.url || 'N/A'}</code></p>
-                    <p class="mb-1"><strong>Method:</strong> ${vuln.method || 'N/A'}</p>
-                    ${vuln.osvdb ? `<p class="mb-0"><strong>OSVDB:</strong> ${vuln.osvdb}</p>` : ''}
-                `;
-                container.appendChild(vulnDiv);
-            });
-        }
-    });
-    
-    if (totalVulns === 0) {
-        container.innerHTML = '<p class="text-success"><i class="bi bi-check-circle"></i> No vulnerabilities detected!</p>';
     }
 }
 
 /**
- * Handle PDF download
+ * Display the generated report
  */
-function handleDownloadPdf() {
-    if (!currentJobId) return;
+function displayReport(analysis) {
+    const container = document.getElementById('reportModalBody');
     
-    // For now, show alert (PDF generation would be implemented server-side)
-    showAlert('PDF download feature coming soon! Job ID: ' + currentJobId, 'info');
+    // Convert markdown to HTML (basic)
+    let reportHtml = analysis.report
+        .replace(/^### (.*$)/gim, '<h5 class="mt-4 mb-3">$1</h5>')
+        .replace(/^## (.*$)/gim, '<h4 class="mt-4 mb-3">$1</h4>')
+        .replace(/^\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+        .replace(/^- (.*$)/gim, '<li>$1</li>')
+        .replace(/\n/g, '<br>');
     
-    // In production, this would call:
-    // window.open(`${API_BASE_URL}?action=download&job_id=${currentJobId}`, '_blank');
+    // Wrap lists
+    reportHtml = reportHtml.replace(/(<li>.*<\/li>)+/g, '<ul class="mb-3">$&</ul>');
+    
+    container.innerHTML = `
+        <div class="report-content">
+            ${reportHtml}
+        </div>
+        <hr>
+        <div class="text-muted small">
+            <i class="bi bi-robot"></i> Generated by: ${analysis.model || 'AI Analysis'}
+            <br>
+            <i class="bi bi-clock"></i> ${new Date(analysis.generated_at).toLocaleString()}
+        </div>
+    `;
+}
+
+/**
+ * Download report as PDF
+ */
+function downloadReportPDF() {
+    const element = document.getElementById('reportModalBody');
+    const opt = {
+        margin: 1,
+        filename: `aegis-recon-report-${Date.now()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+    
+    html2pdf().set(opt).from(element).save();
 }
 
 /**
  * Reset dashboard for new scan
  */
 function resetDashboard() {
-    // Clear current job
-    currentJobId = null;
-    
-    // Clear intervals
-    if (statusPollInterval) {
-        clearInterval(statusPollInterval);
-    }
-    
-    // Hide sections
-    statusSection.classList.add('hidden');
-    resultsSection.classList.add('hidden');
-    
-    // Reset form
+    // Clear input
     domainInput.value = '';
-    startScanBtn.disabled = false;
-    startScanBtn.innerHTML = '<i class="bi bi-play-circle"></i> Start Scan';
     
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Reset stats
+    document.getElementById('statSubdomains').textContent = '0';
+    document.getElementById('statHosts').textContent = '0';
+    document.getElementById('statVulns').textContent = '0';
+    document.getElementById('statEmails').textContent = '0';
+    
+    // Reset content areas
+    document.getElementById('hostsContent').innerHTML = `
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-search fs-1"></i>
+            <p class="mt-3 mb-0">Enter a domain above to start scanning</p>
+        </div>
+    `;
+    document.getElementById('technologyContent').innerHTML = '<p class="text-muted small mb-0">No data yet</p>';
+    document.getElementById('emailsList').innerHTML = '<p class="text-muted small mb-0">No data yet</p>';
+    
+    // Hide buttons
+    newScanBtn.style.display = 'none';
+    statusSection.classList.add('hidden');
+    
+    // Disable report button
+    const reportBtn = document.getElementById('generateReportBtn');
+    if (reportBtn) reportBtn.disabled = true;
+    
+    // Clear stored results
+    currentResults = null;
+    
+    // Focus input
+    domainInput.focus();
 }
 
 /**
  * Show alert message
  */
 function showAlert(message, type = 'info') {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
-    alertDiv.style.zIndex = '9999';
-    alertDiv.innerHTML = `
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show`;
+    alert.innerHTML = `
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
-    document.body.appendChild(alertDiv);
+    alertContainer.appendChild(alert);
     
+    // Auto-dismiss after 5 seconds
     setTimeout(() => {
-        alertDiv.remove();
+        alert.remove();
     }, 5000);
 }

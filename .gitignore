@@ -1,36 +1,30 @@
-# Environment variables and secrets
+# Environment files
 .env
-.env.backup
 .env.local
+.env.*.local
 
-# Dependency directories
+# Dependencies
 node_modules/
-vendor/
 __pycache__/
 *.pyc
 
-# IDE settings
-.vscode/
+# IDE
 .idea/
+.vscode/
 *.swp
 *.swo
 
-# Logs
-*.log
-backend/logs/*.log
-temp/
-tmp/
-*.tmp
-
-# System files
+# OS
 .DS_Store
 Thumbs.db
 
-# Private keys / Certs
-*.pem
-*.key
-*.crt
+# Vercel
+.vercel/
 
-# Build outputs
+# Logs
+*.log
+logs/
+
+# Build artifacts
 dist/
 build/

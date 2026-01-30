@@ -1,64 +1,104 @@
-# Aegis Recon - Intelligent Security Scanner
+# 🛡️ Aegis Recon
 
-Aegis Recon is an advanced vulnerability scanner and OSINT gathering tool, combining powerful open-source security tools with an automated queuing system.
+**Advanced Threat Intelligence & Reconnaissance Platform**
 
-## 🚀 Features
+A modern, serverless security reconnaissance tool built for Vercel deployment. Performs subdomain enumeration, port scanning, technology fingerprinting, and OSINT gathering with AI-powered threat analysis.
 
-- **Subdomain Enumeration**: Integrated `Sublist3r` for finding subdomains.
-- **OSINT Gathering**: Uses `theHarvester` to find emails, IPs, and associated URLs.
-- **Port Scanning**: `Nmap` integration for service discovery.
-- **Tech Stack Detection**: `WhatWeb` fingerprinting.
-- **Vulnerability Scanning**: `Nikto` integration for web server flaws.
-- **Queue System**: Redis-backed job queue for handling concurrent scans.
+## ✨ Features
 
-## 🛠️ Setup & Installation
+- **Subdomain Discovery** - Certificate Transparency logs via crt.sh
+- **Port Scanning** - Fast TCP port detection on common services
+- **Technology Fingerprinting** - Detect web servers, frameworks, and CMS platforms
+- **Email Harvesting** - Extract exposed email addresses
+- **IP Geolocation** - Location data via IPInfo
+- **AI Threat Reports** - GROQ-powered security analysis
 
-### Prerequisites
+## 🚀 Quick Deploy
 
-- PHP 8.0+
-- Python 3.8+
-- MySQL/MariaDB
-- Redis (optional, for queueing)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Vexx-bit/Aegis-Recon)
 
-### Configuration
+### Environment Variables
 
-1. **Clone the repository**:
+Set these in Vercel Dashboard → Project Settings → Environment Variables:
+
+| Variable          | Required | Description                     |
+| ----------------- | -------- | ------------------------------- |
+| `GROQ_API_KEY`    | ✅       | GROQ API key for AI analysis    |
+| `IPINFO_TOKEN`    | Optional | IPInfo.io token for geolocation |
+| `GOOGLE_SAFE_KEY` | Optional | Google Safe Browsing API key    |
+
+## 🏗️ Architecture
+
+```
+/
+├── api/                    # Python serverless functions
+│   ├── scan.py            # Main reconnaissance endpoint
+│   ├── analyze.py         # GROQ AI analysis endpoint
+│   └── requirements.txt   # Python dependencies
+├── frontend/              # Static web files
+│   ├── index.html         # Dashboard UI
+│   ├── css/               # Stylesheets
+│   └── js/                # JavaScript
+└── vercel.json            # Vercel deployment config
+```
+
+## 🔧 Local Development
+
+1. Clone the repository:
 
    ```bash
-   git clone https://github.com/vex-bit/Aegis-Recon.git
+   git clone https://github.com/Vexx-bit/Aegis-Recon.git
    cd Aegis-Recon
    ```
 
-2. **Environment Setup**:
-   Copy the example environment file and configure your credentials.
+2. Install Vercel CLI:
+
+   ```bash
+   npm i -g vercel
+   ```
+
+3. Set up environment:
 
    ```bash
    cp .env.example .env
+   # Edit .env with your API keys
    ```
 
-   **IMPORTANT**: Edit `.env` to set your Database credentials and API keys. **Never commit `.env` to version control.**
+4. Run locally:
+   ```bash
+   vercel dev
+   ```
 
-3. **Install Dependencies**:
-   - Python:
-     ```bash
-     pip install -r ai_services/requirements.txt
-     ```
-   - Database:
-     Run `backend/init_database.php` to create the schema.
+## 📡 API Endpoints
 
-## 🔒 Security Note
+### POST /api/scan
 
-This project contains sensitive configurations in `.env`. The `.gitignore` file is configured to exclude this file.
-When deploying, ensure your web server blocks access to `.env` and `.git` directories.
+Perform reconnaissance on a target domain.
 
-## 🤖 Future Roadmap
+```json
+{
+  "domain": "example.com"
+}
+```
 
-See [IMPROVEMENT_PLAN.md](IMPROVEMENT_PLAN.md) for details on:
+### POST /api/analyze
 
-- AI Integration (LLM-based Threat Analysis)
-- Docker Swarm Support
-- CI/CD Pipelines
+Generate AI threat analysis from scan results.
 
-## 📄 License
+```json
+{
+  "results": { ... scan results ... }
+}
+```
 
-Private / Proprietary.
+## ⚠️ Legal Disclaimer
+
+This tool is intended for **authorized security testing only**. Always obtain proper permission before scanning any systems. The developers are not responsible for misuse.
+
+## 📜 License
+
+MIT License - See [LICENSE](LICENSE) for details.
+
+---
+
+Built with ❤️ by [Vexx-bit](https://github.com/Vexx-bit)
