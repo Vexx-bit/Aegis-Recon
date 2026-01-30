@@ -526,9 +526,9 @@ async function generateReport() {
     const modal = new bootstrap.Modal(document.getElementById('reportModal'));
     modal.show();
     
-    // Check if we have a cached report for this target
+    // Check if we have a cached report for this target in this session
     if (cachedReport && cachedReport.target === currentResults.target) {
-        console.log('[AEGIS] Using cached report');
+        console.log('[AEGIS] Using session report cache');
         displayReport(cachedReport.analysis);
         return;
     }
@@ -557,23 +557,13 @@ async function generateReport() {
             throw new Error(data.error || 'Failed to generate report');
         }
         
-        // Cache the report
+        // Cache the report for this session only (no localStorage)
         cachedReport = {
             target: currentResults.target,
             analysis: data.analysis,
             scanResults: currentResults,
             cachedAt: new Date().toISOString()
         };
-        
-        // Save to localStorage for persistence
-        try {
-            localStorage.setItem('aegis_last_report', JSON.stringify(cachedReport));
-        } catch (e) {
-            console.warn('[AEGIS] Could not save report to localStorage');
-        }
-        
-        // Enable view last report button
-        enableViewLastReportButton();
         
         // Display the report
         displayReport(data.analysis);
@@ -594,54 +584,9 @@ async function generateReport() {
 }
 
 /**
- * View cached/last report
- */
-function viewLastReport() {
-    // Try to load from cache or localStorage
-    if (!cachedReport) {
-        try {
-            const saved = localStorage.getItem('aegis_last_report');
-            if (saved) {
-                cachedReport = JSON.parse(saved);
-            }
-        } catch (e) {
-            console.warn('[AEGIS] Could not load cached report');
-        }
-    }
-    
-    if (!cachedReport) {
-        showAlert('No cached report available', 'warning');
-        return;
-    }
-    
-    const modal = new bootstrap.Modal(document.getElementById('reportModal'));
-    modal.show();
-    displayReport(cachedReport.analysis, true);
-}
-
-/**
- * Enable the View Last Report button
- */
-function enableViewLastReportButton() {
-    let btn = document.getElementById('viewLastReportBtn');
-    if (!btn) {
-        // Create the button if it doesn't exist
-        const actionsContainer = document.querySelector('.info-card:last-child .d-grid');
-        if (actionsContainer) {
-            const newBtn = document.createElement('button');
-            newBtn.id = 'viewLastReportBtn';
-            newBtn.className = 'btn btn-outline-light btn-sm';
-            newBtn.innerHTML = '<i class="bi bi-clock-history"></i> View Last Report';
-            newBtn.onclick = viewLastReport;
-            actionsContainer.appendChild(newBtn);
-        }
-    }
-}
-
-/**
  * Display the generated report with rich formatting
  */
-function displayReport(analysis, isCached = false) {
+function displayReport(analysis) {
     const container = document.getElementById('reportModalBody');
     const target = cachedReport?.target || currentResults?.target || 'Unknown';
     const score = cachedReport?.scanResults?.security_score || currentResults?.security_score || 100;
@@ -717,7 +662,6 @@ function displayReport(analysis, isCached = false) {
                     <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.8rem; margin-top: 0.25rem;">
                         <i class="bi bi-clock"></i>
                         <span>${new Date(analysis.generated_at).toLocaleString()}</span>
-                        ${isCached ? '<span style="background: rgba(99, 102, 241, 0.2); color: #818cf8; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.7rem; margin-left: 0.5rem;">CACHED</span>' : ''}
                     </div>
                 </div>
                 <div style="text-align: right;">
@@ -755,56 +699,58 @@ function downloadReportPDF() {
     else if (score >= 40) { riskLevel = 'HIGH RISK'; riskColor = '#f97316'; }
     else { riskLevel = 'CRITICAL RISK'; riskColor = '#ef4444'; }
     
-    // Create PDF container (hidden, appended to body)
+    // Create PDF container (hidden, A4 width = 210mm)
     const pdfContainer = document.createElement('div');
     pdfContainer.id = 'pdf-export-container';
-    pdfContainer.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 8.5in;';
+    pdfContainer.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 210mm;';
     
     pdfContainer.innerHTML = `
-        <div style="font-family: Arial, Helvetica, sans-serif; background: white; color: #1a1a2e; padding: 0; font-size: 12px; line-height: 1.6;">
+        <div style="font-family: Arial, Helvetica, sans-serif; background: white; color: #1a1a2e; padding: 0; font-size: 11px; line-height: 1.5;">
             
             <!-- HEADER -->
-            <div style="background: linear-gradient(135deg, #6366f1, #4338ca); padding: 25px 30px; color: white;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-size: 22px; font-weight: bold; margin-bottom: 3px;">⛨ AEGIS RECON</div>
-                        <div style="font-size: 10px; letter-spacing: 2px; opacity: 0.9;">THREAT INTELLIGENCE REPORT</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 10px; opacity: 0.8;">Generated</div>
-                        <div style="font-size: 12px; font-weight: 600;">${timestamp}</div>
-                    </div>
-                </div>
+            <div style="background: linear-gradient(135deg, #6366f1, #4338ca); padding: 20px 25px; color: white;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 60%;">
+                            <div style="font-size: 20px; font-weight: bold; margin-bottom: 2px;">⛨ AEGIS RECON</div>
+                            <div style="font-size: 9px; letter-spacing: 2px; opacity: 0.9;">THREAT INTELLIGENCE REPORT</div>
+                        </td>
+                        <td style="width: 40%; text-align: right;">
+                            <div style="font-size: 9px; opacity: 0.8;">Generated</div>
+                            <div style="font-size: 11px; font-weight: 600;">${timestamp}</div>
+                        </td>
+                    </tr>
+                </table>
             </div>
             
             <!-- TARGET INFO BAR -->
-            <div style="background: #f8fafc; padding: 15px 30px; border-bottom: 2px solid #e2e8f0;">
+            <div style="background: #f8fafc; padding: 12px 25px; border-bottom: 2px solid #e2e8f0;">
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
                         <td style="width: 40%; vertical-align: top;">
-                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Target Domain</div>
-                            <div style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 2px;">${target}</div>
+                            <div style="font-size: 8px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Target Domain</div>
+                            <div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 2px;">${target}</div>
                         </td>
                         <td style="width: 30%; text-align: center; vertical-align: top;">
-                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Security Score</div>
-                            <div style="font-size: 28px; font-weight: 800; color: ${riskColor}; margin-top: 2px;">${score}<span style="font-size: 14px; color: #94a3b8;">/100</span></div>
+                            <div style="font-size: 8px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Security Score</div>
+                            <div style="font-size: 24px; font-weight: 800; color: ${riskColor}; margin-top: 2px;">${score}<span style="font-size: 12px; color: #94a3b8;">/100</span></div>
                         </td>
                         <td style="width: 30%; text-align: right; vertical-align: top;">
-                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Risk Assessment</div>
-                            <div style="display: inline-block; margin-top: 5px; background: ${riskColor}; color: white; padding: 4px 12px; border-radius: 15px; font-size: 11px; font-weight: 700;">${riskLevel}</div>
+                            <div style="font-size: 8px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Risk Assessment</div>
+                            <div style="display: inline-block; margin-top: 4px; background: ${riskColor}; color: white; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 700;">${riskLevel}</div>
                         </td>
                     </tr>
                 </table>
             </div>
             
             <!-- REPORT BODY -->
-            <div style="padding: 25px 30px; min-height: 400px;">
+            <div style="padding: 20px 25px;">
                 ${formatReportForPDF(reportContent)}
             </div>
             
             <!-- FOOTER -->
-            <div style="background: #f1f5f9; padding: 15px 30px; border-top: 1px solid #e2e8f0; margin-top: 20px;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 9px; color: #64748b;">
+            <div style="background: #f1f5f9; padding: 12px 25px; border-top: 1px solid #e2e8f0;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 8px; color: #64748b;">
                     <tr>
                         <td style="width: 33%;">
                             <strong style="color: #0f172a;">Aegis Recon v${AUTHOR.version}</strong><br>
@@ -839,8 +785,8 @@ function downloadReportPDF() {
             backgroundColor: '#ffffff'
         },
         jsPDF: { 
-            unit: 'in', 
-            format: 'letter', 
+            unit: 'mm', 
+            format: 'a4', 
             orientation: 'portrait' 
         }
     };
@@ -892,21 +838,6 @@ function formatReportForPDF(markdown) {
     
     return html;
 }
-
-// Load cached report on page load
-document.addEventListener('DOMContentLoaded', () => {
-    try {
-        const saved = localStorage.getItem('aegis_last_report');
-        if (saved) {
-            cachedReport = JSON.parse(saved);
-            enableViewLastReportButton();
-            console.log('[AEGIS] Loaded cached report for:', cachedReport.target);
-        }
-    } catch (e) {
-        console.warn('[AEGIS] Could not load cached report');
-    }
-});
-
 // ============================================================================
 // UTILITIES
 // ============================================================================
