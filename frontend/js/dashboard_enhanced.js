@@ -286,23 +286,35 @@ function startStatusPolling() {
  * Poll for scan status
  */
 async function pollStatus() {
-    if (!currentJobId) return;
+    if (!currentJobId) {
+        console.warn('[POLL] No currentJobId, skipping poll');
+        return;
+    }
+    
+    console.log('[POLL] Polling for job:', currentJobId);
+    console.log('[POLL] API_KEY loaded:', API_KEY ? 'YES (' + API_KEY.substring(0,15) + '...)' : 'NO/EMPTY');
     
     try {
-        const response = await fetch(`${API_BASE_URL}?action=status&job_id=${currentJobId}`, {
+        const url = `${API_BASE_URL}?action=status&job_id=${currentJobId}`;
+        console.log('[POLL] Fetching:', url);
+        
+        const response = await fetch(url, {
             headers: {
                 'X-API-KEY': API_KEY
             }
         });
         
         const data = await response.json();
+        console.log('[POLL] API Response:', data);
         
         if (!response.ok || !data.success) {
+            console.error('[POLL] API Error:', data.error || 'Unknown error');
             throw new Error(data.error || 'Failed to get status');
         }
         
         // Normalize status - Python scanner uses 'finished', frontend expects 'done'
         let normalizedStatus = data.status;
+        console.log('[POLL] Raw status:', data.status, '-> Normalized:', normalizedStatus);
         if (normalizedStatus === 'finished') {
             normalizedStatus = 'done';
         }
@@ -312,18 +324,25 @@ async function pollStatus() {
         
         // If done/finished, fetch results
         if (normalizedStatus === 'done') {
+            console.log('[POLL] Scan complete! Fetching results...');
             clearInterval(pollingInterval);
             await fetchResults();
         }
         
         // If error, stop polling
         if (data.status === 'error' || data.status === 'failed') {
+            console.error('[POLL] Scan failed:', data.error_message);
             clearInterval(pollingInterval);
             showAlert('Scan failed: ' + (data.error_message || 'Unknown error'), 'danger');
         }
         
     } catch (error) {
-        console.error('Error polling status:', error);
+        console.error('[POLL] Exception during polling:', error.message);
+        // Show error in UI if API key is missing
+        if (error.message.includes('API key')) {
+            showAlert('Configuration Error: API key not loaded. Please refresh the page.', 'danger');
+            clearInterval(pollingInterval);
+        }
     }
 }
 
