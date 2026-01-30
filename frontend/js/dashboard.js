@@ -738,67 +738,85 @@ function displayReport(analysis, isCached = false) {
  * Download report as professionally styled PDF
  */
 function downloadReportPDF() {
-    const target = cachedReport?.target || currentResults?.target || 'scan';
-    const timestamp = new Date().toISOString().split('T')[0];
-    
-    // Create a styled wrapper for PDF
-    const printArea = document.getElementById('reportPrintArea');
-    if (!printArea) {
+    if (!cachedReport && !currentResults) {
         showAlert('No report to download', 'warning');
         return;
     }
     
-    // Create clone for PDF with white background (better for printing)
-    const pdfContent = document.createElement('div');
-    pdfContent.innerHTML = `
-        <div style="font-family: 'Inter', Arial, sans-serif; background: white; color: #1e293b; padding: 0;">
+    const target = cachedReport?.target || currentResults?.target || 'scan';
+    const score = cachedReport?.scanResults?.security_score || currentResults?.security_score || 100;
+    const timestamp = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const reportContent = cachedReport?.analysis?.report || 'No report content available.';
+    
+    // Determine risk level
+    let riskLevel, riskColor;
+    if (score >= 80) { riskLevel = 'LOW RISK'; riskColor = '#10b981'; }
+    else if (score >= 60) { riskLevel = 'MEDIUM RISK'; riskColor = '#f59e0b'; }
+    else if (score >= 40) { riskLevel = 'HIGH RISK'; riskColor = '#f97316'; }
+    else { riskLevel = 'CRITICAL RISK'; riskColor = '#ef4444'; }
+    
+    // Create PDF container (hidden, appended to body)
+    const pdfContainer = document.createElement('div');
+    pdfContainer.id = 'pdf-export-container';
+    pdfContainer.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 8.5in;';
+    
+    pdfContainer.innerHTML = `
+        <div style="font-family: Arial, Helvetica, sans-serif; background: white; color: #1a1a2e; padding: 0; font-size: 12px; line-height: 1.6;">
             
-            <!-- PDF Header -->
-            <div style="background: linear-gradient(135deg, #6366f1, #4f46e5); padding: 30px; text-align: center;">
-                <h1 style="margin: 0; color: white; font-weight: 800; font-size: 24px;">🛡️ AEGIS RECON</h1>
-                <p style="margin: 5px 0 0; color: rgba(255,255,255,0.9); font-size: 12px; letter-spacing: 2px;">THREAT INTELLIGENCE REPORT</p>
+            <!-- HEADER -->
+            <div style="background: linear-gradient(135deg, #6366f1, #4338ca); padding: 25px 30px; color: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 22px; font-weight: bold; margin-bottom: 3px;">⛨ AEGIS RECON</div>
+                        <div style="font-size: 10px; letter-spacing: 2px; opacity: 0.9;">THREAT INTELLIGENCE REPORT</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 10px; opacity: 0.8;">Generated</div>
+                        <div style="font-size: 12px; font-weight: 600;">${timestamp}</div>
+                    </div>
+                </div>
             </div>
             
-            <!-- Target Bar -->
+            <!-- TARGET INFO BAR -->
             <div style="background: #f8fafc; padding: 15px 30px; border-bottom: 2px solid #e2e8f0;">
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
-                        <td style="width: 33%;">
-                            <small style="color: #64748b; font-size: 10px; text-transform: uppercase;">Target</small>
-                            <div style="color: #0f172a; font-weight: 600; font-size: 14px;">${cachedReport?.target || 'N/A'}</div>
+                        <td style="width: 40%; vertical-align: top;">
+                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Target Domain</div>
+                            <div style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 2px;">${target}</div>
                         </td>
-                        <td style="width: 33%; text-align: center;">
-                            <small style="color: #64748b; font-size: 10px; text-transform: uppercase;">Security Score</small>
-                            <div style="color: #6366f1; font-weight: 800; font-size: 20px;">${cachedReport?.scanResults?.security_score || currentResults?.security_score || '--'}/100</div>
+                        <td style="width: 30%; text-align: center; vertical-align: top;">
+                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Security Score</div>
+                            <div style="font-size: 28px; font-weight: 800; color: ${riskColor}; margin-top: 2px;">${score}<span style="font-size: 14px; color: #94a3b8;">/100</span></div>
                         </td>
-                        <td style="width: 33%; text-align: right;">
-                            <small style="color: #64748b; font-size: 10px; text-transform: uppercase;">Generated</small>
-                            <div style="color: #0f172a; font-weight: 500; font-size: 12px;">${new Date().toLocaleDateString()}</div>
+                        <td style="width: 30%; text-align: right; vertical-align: top;">
+                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Risk Assessment</div>
+                            <div style="display: inline-block; margin-top: 5px; background: ${riskColor}; color: white; padding: 4px 12px; border-radius: 15px; font-size: 11px; font-weight: 700;">${riskLevel}</div>
                         </td>
                     </tr>
                 </table>
             </div>
             
-            <!-- Report Body -->
-            <div style="padding: 30px; line-height: 1.8; color: #334155;">
-                ${formatReportForPDF(cachedReport?.analysis?.report || 'No report content available.')}
+            <!-- REPORT BODY -->
+            <div style="padding: 25px 30px; min-height: 400px;">
+                ${formatReportForPDF(reportContent)}
             </div>
             
-            <!-- PDF Footer -->
-            <div style="background: #f8fafc; padding: 20px 30px; border-top: 2px solid #e2e8f0; margin-top: 20px;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 10px; color: #64748b;">
+            <!-- FOOTER -->
+            <div style="background: #f1f5f9; padding: 15px 30px; border-top: 1px solid #e2e8f0; margin-top: 20px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 9px; color: #64748b;">
                     <tr>
-                        <td>
+                        <td style="width: 33%;">
                             <strong style="color: #0f172a;">Aegis Recon v${AUTHOR.version}</strong><br>
-                            Generated by ${cachedReport?.analysis?.model || 'AI Analysis'}
+                            AI-Powered Analysis
                         </td>
-                        <td style="text-align: center;">
-                            <strong>CONFIDENTIAL</strong><br>
+                        <td style="width: 34%; text-align: center;">
+                            <strong style="color: #dc2626;">◆ CONFIDENTIAL ◆</strong><br>
                             For authorized use only
                         </td>
-                        <td style="text-align: right;">
-                            <strong>Author: ${AUTHOR.name}</strong><br>
-                            ${AUTHOR.github}
+                        <td style="width: 33%; text-align: right;">
+                            <strong style="color: #0f172a;">${AUTHOR.name}</strong><br>
+                            github.com/Vexx-bit
                         </td>
                     </tr>
                 </table>
@@ -807,38 +825,72 @@ function downloadReportPDF() {
         </div>
     `;
     
-    document.body.appendChild(pdfContent);
+    document.body.appendChild(pdfContainer);
     
-    const opt = {
-        margin: [0.3, 0.3, 0.3, 0.3],
-        filename: `aegis-recon-${target.replace(/\./g, '-')}-${timestamp}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    // PDF options
+    const options = {
+        margin: 0.4,
+        filename: `Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { 
+            scale: 2, 
+            useCORS: true, 
+            logging: false,
+            backgroundColor: '#ffffff'
+        },
+        jsPDF: { 
+            unit: 'in', 
+            format: 'letter', 
+            orientation: 'portrait' 
+        }
     };
     
-    html2pdf().set(opt).from(pdfContent).save().then(() => {
-        pdfContent.remove();
-        showAlert('PDF downloaded successfully!', 'success');
-    }).catch(err => {
-        pdfContent.remove();
-        showAlert('PDF generation failed: ' + err.message, 'danger');
-    });
+    // Generate PDF
+    html2pdf()
+        .set(options)
+        .from(pdfContainer.firstElementChild)
+        .save()
+        .then(() => {
+            pdfContainer.remove();
+            showAlert('✓ PDF Report downloaded!', 'success');
+        })
+        .catch(err => {
+            pdfContainer.remove();
+            console.error('[AEGIS] PDF Error:', err);
+            showAlert('PDF generation failed', 'danger');
+        });
 }
 
 /**
- * Format report content for PDF (clean version)
+ * Format markdown report content for PDF
  */
 function formatReportForPDF(markdown) {
-    return markdown
-        .replace(/^### (.*$)/gim, '<h4 style="color: #0f172a; margin-top: 20px; margin-bottom: 10px; font-size: 14px; font-weight: 700;">$1</h4>')
-        .replace(/^## (.*$)/gim, '<h3 style="color: #0f172a; margin-top: 25px; margin-bottom: 12px; font-size: 16px; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">$1</h3>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/^- (.*$)/gim, '<div style="padding-left: 15px; margin: 5px 0;"><span style="color: #6366f1; margin-right: 8px;">●</span>$1</div>')
-        .replace(/`(.*?)`/g, '<code style="background: #f1f5f9; color: #6366f1; padding: 2px 6px; border-radius: 3px; font-size: 11px;">$1</code>')
-        .replace(/\n\n/g, '</p><p style="margin: 10px 0;">')
+    if (!markdown) return '<p>No content available</p>';
+    
+    let html = markdown
+        // Headers
+        .replace(/^## (.*$)/gim, '<h2 style="color: #0f172a; font-size: 16px; font-weight: 700; margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 2px solid #6366f1;">$1</h2>')
+        .replace(/^### (.*$)/gim, '<h3 style="color: #334155; font-size: 13px; font-weight: 700; margin: 15px 0 8px 0;">$1</h3>')
+        // Bold text
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #0f172a;">$1</strong>')
+        // Risk indicators
+        .replace(/🟢/g, '<span style="color: #10b981;">●</span>')
+        .replace(/🟡/g, '<span style="color: #f59e0b;">●</span>')
+        .replace(/🟠/g, '<span style="color: #f97316;">●</span>')
+        .replace(/🔴/g, '<span style="color: #ef4444;">●</span>')
+        .replace(/⚠️/g, '<span style="color: #f59e0b;">▲</span>')
+        // Bullet points
+        .replace(/^- (.*$)/gim, '<div style="margin: 6px 0 6px 15px; padding-left: 12px; border-left: 3px solid #6366f1;">$1</div>')
+        // Code/technical terms
+        .replace(/`(.*?)`/g, '<code style="background: #f1f5f9; color: #6366f1; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 10px;">$1</code>')
+        // Line breaks
+        .replace(/\n\n/g, '</p><p style="margin: 10px 0; color: #475569;">')
         .replace(/\n/g, '<br>');
+    
+    // Wrap in paragraph
+    html = '<p style="margin: 10px 0; color: #475569;">' + html + '</p>';
+    
+    return html;
 }
 
 // Load cached report on page load
