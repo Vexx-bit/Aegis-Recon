@@ -510,9 +510,8 @@ function displayOSINT(osint) {
     container.innerHTML = html;
 }
 
-// ============================================================================
-// REPORT GENERATION
-// ============================================================================
+// Cached report storage
+let cachedReport = null;
 
 /**
  * Generate AI threat report
@@ -527,11 +526,19 @@ async function generateReport() {
     const modal = new bootstrap.Modal(document.getElementById('reportModal'));
     modal.show();
     
-    // Reset modal content
+    // Check if we have a cached report for this target
+    if (cachedReport && cachedReport.target === currentResults.target) {
+        console.log('[AEGIS] Using cached report');
+        displayReport(cachedReport.analysis);
+        return;
+    }
+    
+    // Reset modal content - loading state
     document.getElementById('reportModalBody').innerHTML = `
         <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p class="mt-3">Generating AI threat analysis...</p>
+            <div class="spinner-border" style="color: #6366f1;" role="status"></div>
+            <p class="mt-3" style="color: #94a3b8;">Generating AI threat analysis...</p>
+            <small class="text-muted">This may take a few seconds</small>
         </div>
     `;
     
@@ -550,73 +557,303 @@ async function generateReport() {
             throw new Error(data.error || 'Failed to generate report');
         }
         
+        // Cache the report
+        cachedReport = {
+            target: currentResults.target,
+            analysis: data.analysis,
+            scanResults: currentResults,
+            cachedAt: new Date().toISOString()
+        };
+        
+        // Save to localStorage for persistence
+        try {
+            localStorage.setItem('aegis_last_report', JSON.stringify(cachedReport));
+        } catch (e) {
+            console.warn('[AEGIS] Could not save report to localStorage');
+        }
+        
+        // Enable view last report button
+        enableViewLastReportButton();
+        
         // Display the report
         displayReport(data.analysis);
         
     } catch (error) {
         console.error('[AEGIS] Report Error:', error);
         document.getElementById('reportModalBody').innerHTML = `
-            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i> ${error.message}
+            <div style="padding: 2rem; text-align: center;">
+                <i class="bi bi-exclamation-triangle" style="font-size: 3rem; color: #f43f5e;"></i>
+                <h5 class="mt-3" style="color: #f8fafc;">Report Generation Failed</h5>
+                <p style="color: #94a3b8;">${error.message}</p>
+                <button class="btn btn-outline-primary" onclick="generateReport()">
+                    <i class="bi bi-arrow-repeat"></i> Retry
+                </button>
             </div>
         `;
     }
 }
 
 /**
- * Display the generated report
+ * View cached/last report
  */
-function displayReport(analysis) {
-    const container = document.getElementById('reportModalBody');
+function viewLastReport() {
+    // Try to load from cache or localStorage
+    if (!cachedReport) {
+        try {
+            const saved = localStorage.getItem('aegis_last_report');
+            if (saved) {
+                cachedReport = JSON.parse(saved);
+            }
+        } catch (e) {
+            console.warn('[AEGIS] Could not load cached report');
+        }
+    }
     
-    // Convert markdown to HTML
-    let reportHtml = analysis.report
-        .replace(/^### (.*$)/gim, '<h5 class="mt-4 mb-3">$1</h5>')
-        .replace(/^## (.*$)/gim, '<h4 class="mt-4 mb-3">$1</h4>')
-        .replace(/^\*\*(.*)\*\*/gim, '<strong>$1</strong>')
-        .replace(/^- (.*$)/gim, '<li>$1</li>')
+    if (!cachedReport) {
+        showAlert('No cached report available', 'warning');
+        return;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('reportModal'));
+    modal.show();
+    displayReport(cachedReport.analysis, true);
+}
+
+/**
+ * Enable the View Last Report button
+ */
+function enableViewLastReportButton() {
+    let btn = document.getElementById('viewLastReportBtn');
+    if (!btn) {
+        // Create the button if it doesn't exist
+        const actionsContainer = document.querySelector('.info-card:last-child .d-grid');
+        if (actionsContainer) {
+            const newBtn = document.createElement('button');
+            newBtn.id = 'viewLastReportBtn';
+            newBtn.className = 'btn btn-outline-light btn-sm';
+            newBtn.innerHTML = '<i class="bi bi-clock-history"></i> View Last Report';
+            newBtn.onclick = viewLastReport;
+            actionsContainer.appendChild(newBtn);
+        }
+    }
+}
+
+/**
+ * Display the generated report with rich formatting
+ */
+function displayReport(analysis, isCached = false) {
+    const container = document.getElementById('reportModalBody');
+    const target = cachedReport?.target || currentResults?.target || 'Unknown';
+    const score = cachedReport?.scanResults?.security_score || currentResults?.security_score || 100;
+    
+    // Determine risk level
+    let riskLevel, riskColor, riskBg;
+    if (score >= 80) {
+        riskLevel = 'LOW'; riskColor = '#10b981'; riskBg = 'rgba(16, 185, 129, 0.15)';
+    } else if (score >= 60) {
+        riskLevel = 'MEDIUM'; riskColor = '#f59e0b'; riskBg = 'rgba(245, 158, 11, 0.15)';
+    } else if (score >= 40) {
+        riskLevel = 'HIGH'; riskColor = '#f97316'; riskBg = 'rgba(249, 115, 22, 0.15)';
+    } else {
+        riskLevel = 'CRITICAL'; riskColor = '#ef4444'; riskBg = 'rgba(239, 68, 68, 0.15)';
+    }
+    
+    // Convert markdown to styled HTML
+    let reportContent = analysis.report
+        .replace(/^### (.*$)/gim, '<h5 style="color: #f8fafc; margin-top: 1.5rem; margin-bottom: 0.75rem; font-weight: 600;">$1</h5>')
+        .replace(/^## (.*$)/gim, '<h4 style="color: #f8fafc; margin-top: 1.5rem; margin-bottom: 0.75rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">$1</h4>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #f8fafc;">$1</strong>')
+        .replace(/^- (.*$)/gim, '<li style="color: #cbd5e1; margin-bottom: 0.5rem;">$1</li>')
+        .replace(/`(.*?)`/g, '<code style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.85rem;">$1</code>')
+        .replace(/\n\n/g, '</p><p style="color: #94a3b8; line-height: 1.7;">')
         .replace(/\n/g, '<br>');
     
-    reportHtml = reportHtml.replace(/(<li>.*<\/li>)+/g, '<ul class="mb-3">$&</ul>');
+    // Wrap lists properly
+    reportContent = reportContent.replace(/(<li.*?<\/li>)+/g, '<ul style="list-style: none; padding-left: 0; margin: 1rem 0;">$&</ul>');
+    reportContent = reportContent.replace(/<li/g, '<li style="position: relative; padding-left: 1.5rem;"><span style="position: absolute; left: 0; color: #6366f1;">▸</span');
     
     container.innerHTML = `
-        <div class="report-content">
-            ${reportHtml}
-        </div>
-        <hr>
-        <div class="text-muted small">
-            <i class="bi bi-robot"></i> Generated by: ${analysis.model || 'AI Analysis'}<br>
-            <i class="bi bi-clock"></i> ${new Date(analysis.generated_at).toLocaleString()}<br>
-            <i class="bi bi-person"></i> Aegis Recon by <a href="${AUTHOR.github}" target="_blank">${AUTHOR.name}</a>
+        <div id="reportPrintArea" style="background: linear-gradient(135deg, #0f172a, #1e293b); padding: 0;">
+            
+            <!-- Report Header -->
+            <div style="background: linear-gradient(135deg, #6366f1, #4f46e5); padding: 2rem; text-align: center; border-radius: 12px 12px 0 0;">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <i class="bi bi-shield-fill-check" style="font-size: 2rem; color: white;"></i>
+                    <h2 style="margin: 0; color: white; font-weight: 800; letter-spacing: -0.02em;">AEGIS RECON</h2>
+                </div>
+                <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 0.85rem; letter-spacing: 2px;">THREAT INTELLIGENCE REPORT</p>
+            </div>
+            
+            <!-- Target Info Bar -->
+            <div style="background: rgba(0,0,0,0.3); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <small style="color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem;">Target</small>
+                    <div style="color: #f8fafc; font-weight: 600; font-size: 1.1rem;">${target}</div>
+                </div>
+                <div style="text-align: center;">
+                    <small style="color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem;">Security Score</small>
+                    <div style="color: ${riskColor}; font-weight: 800; font-size: 1.5rem;">${score}/100</div>
+                </div>
+                <div style="text-align: right;">
+                    <small style="color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem;">Risk Level</small>
+                    <div style="background: ${riskBg}; color: ${riskColor}; padding: 0.25rem 0.75rem; border-radius: 20px; font-weight: 700; font-size: 0.85rem; display: inline-block;">${riskLevel}</div>
+                </div>
+            </div>
+            
+            <!-- Report Content -->
+            <div style="padding: 2rem;">
+                <p style="color: #94a3b8; line-height: 1.7;">
+                    ${reportContent}
+                </p>
+            </div>
+            
+            <!-- Report Footer -->
+            <div style="border-top: 1px solid rgba(255,255,255,0.1); padding: 1.5rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.8rem;">
+                        <i class="bi bi-robot"></i>
+                        <span>Generated by ${analysis.model || 'AI Analysis'}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.8rem; margin-top: 0.25rem;">
+                        <i class="bi bi-clock"></i>
+                        <span>${new Date(analysis.generated_at).toLocaleString()}</span>
+                        ${isCached ? '<span style="background: rgba(99, 102, 241, 0.2); color: #818cf8; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.7rem; margin-left: 0.5rem;">CACHED</span>' : ''}
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="color: #64748b; font-size: 0.75rem;">
+                        <i class="bi bi-github"></i> github.com/Vexx-bit/Aegis-Recon
+                    </div>
+                    <div style="color: #475569; font-size: 0.7rem; margin-top: 0.25rem;">
+                        © ${new Date().getFullYear()} VexSpitta. All Rights Reserved.
+                    </div>
+                </div>
+            </div>
+            
         </div>
     `;
 }
 
 /**
- * Download report as PDF (includes watermark)
+ * Download report as professionally styled PDF
  */
 function downloadReportPDF() {
-    const element = document.getElementById('reportModalBody');
+    const target = cachedReport?.target || currentResults?.target || 'scan';
+    const timestamp = new Date().toISOString().split('T')[0];
     
-    // Add watermark before PDF generation
-    const watermark = document.createElement('div');
-    watermark.innerHTML = `<div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 10px;">
-        Generated by Aegis Recon v${AUTHOR.version} | ${AUTHOR.github}
-    </div>`;
-    element.appendChild(watermark);
+    // Create a styled wrapper for PDF
+    const printArea = document.getElementById('reportPrintArea');
+    if (!printArea) {
+        showAlert('No report to download', 'warning');
+        return;
+    }
+    
+    // Create clone for PDF with white background (better for printing)
+    const pdfContent = document.createElement('div');
+    pdfContent.innerHTML = `
+        <div style="font-family: 'Inter', Arial, sans-serif; background: white; color: #1e293b; padding: 0;">
+            
+            <!-- PDF Header -->
+            <div style="background: linear-gradient(135deg, #6366f1, #4f46e5); padding: 30px; text-align: center;">
+                <h1 style="margin: 0; color: white; font-weight: 800; font-size: 24px;">🛡️ AEGIS RECON</h1>
+                <p style="margin: 5px 0 0; color: rgba(255,255,255,0.9); font-size: 12px; letter-spacing: 2px;">THREAT INTELLIGENCE REPORT</p>
+            </div>
+            
+            <!-- Target Bar -->
+            <div style="background: #f8fafc; padding: 15px 30px; border-bottom: 2px solid #e2e8f0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 33%;">
+                            <small style="color: #64748b; font-size: 10px; text-transform: uppercase;">Target</small>
+                            <div style="color: #0f172a; font-weight: 600; font-size: 14px;">${cachedReport?.target || 'N/A'}</div>
+                        </td>
+                        <td style="width: 33%; text-align: center;">
+                            <small style="color: #64748b; font-size: 10px; text-transform: uppercase;">Security Score</small>
+                            <div style="color: #6366f1; font-weight: 800; font-size: 20px;">${cachedReport?.scanResults?.security_score || currentResults?.security_score || '--'}/100</div>
+                        </td>
+                        <td style="width: 33%; text-align: right;">
+                            <small style="color: #64748b; font-size: 10px; text-transform: uppercase;">Generated</small>
+                            <div style="color: #0f172a; font-weight: 500; font-size: 12px;">${new Date().toLocaleDateString()}</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- Report Body -->
+            <div style="padding: 30px; line-height: 1.8; color: #334155;">
+                ${formatReportForPDF(cachedReport?.analysis?.report || 'No report content available.')}
+            </div>
+            
+            <!-- PDF Footer -->
+            <div style="background: #f8fafc; padding: 20px 30px; border-top: 2px solid #e2e8f0; margin-top: 20px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 10px; color: #64748b;">
+                    <tr>
+                        <td>
+                            <strong style="color: #0f172a;">Aegis Recon v${AUTHOR.version}</strong><br>
+                            Generated by ${cachedReport?.analysis?.model || 'AI Analysis'}
+                        </td>
+                        <td style="text-align: center;">
+                            <strong>CONFIDENTIAL</strong><br>
+                            For authorized use only
+                        </td>
+                        <td style="text-align: right;">
+                            <strong>Author: ${AUTHOR.name}</strong><br>
+                            ${AUTHOR.github}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
+        </div>
+    `;
+    
+    document.body.appendChild(pdfContent);
     
     const opt = {
-        margin: 1,
-        filename: `aegis-recon-report-${Date.now()}.pdf`,
+        margin: [0.3, 0.3, 0.3, 0.3],
+        filename: `aegis-recon-${target.replace(/\./g, '-')}-${timestamp}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
     
-    html2pdf().set(opt).from(element).save().then(() => {
-        watermark.remove();
+    html2pdf().set(opt).from(pdfContent).save().then(() => {
+        pdfContent.remove();
+        showAlert('PDF downloaded successfully!', 'success');
+    }).catch(err => {
+        pdfContent.remove();
+        showAlert('PDF generation failed: ' + err.message, 'danger');
     });
 }
+
+/**
+ * Format report content for PDF (clean version)
+ */
+function formatReportForPDF(markdown) {
+    return markdown
+        .replace(/^### (.*$)/gim, '<h4 style="color: #0f172a; margin-top: 20px; margin-bottom: 10px; font-size: 14px; font-weight: 700;">$1</h4>')
+        .replace(/^## (.*$)/gim, '<h3 style="color: #0f172a; margin-top: 25px; margin-bottom: 12px; font-size: 16px; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">$1</h3>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^- (.*$)/gim, '<div style="padding-left: 15px; margin: 5px 0;"><span style="color: #6366f1; margin-right: 8px;">●</span>$1</div>')
+        .replace(/`(.*?)`/g, '<code style="background: #f1f5f9; color: #6366f1; padding: 2px 6px; border-radius: 3px; font-size: 11px;">$1</code>')
+        .replace(/\n\n/g, '</p><p style="margin: 10px 0;">')
+        .replace(/\n/g, '<br>');
+}
+
+// Load cached report on page load
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        const saved = localStorage.getItem('aegis_last_report');
+        if (saved) {
+            cachedReport = JSON.parse(saved);
+            enableViewLastReportButton();
+            console.log('[AEGIS] Loaded cached report for:', cachedReport.target);
+        }
+    } catch (e) {
+        console.warn('[AEGIS] Could not load cached report');
+    }
+});
 
 // ============================================================================
 // UTILITIES
