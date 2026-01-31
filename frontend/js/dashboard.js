@@ -690,7 +690,7 @@ function downloadReportPDF() {
     const target = cachedReport?.target || currentResults?.target || 'scan';
     const score = cachedReport?.scanResults?.security_score || currentResults?.security_score || 100;
     const timestamp = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const reportContent = cachedReport?.analysis?.report || 'No report content available.';
+    const reportContent = cachedReport?.analysis || 'No report content available.';
     
     // Determine risk level
     let riskLevel, riskColor;
