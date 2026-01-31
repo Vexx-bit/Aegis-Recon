@@ -921,28 +921,19 @@ function downloadReportPDF() {
             continue;
         }
         
-        // Numbered items
+        // Numbered items - simple corporate style
         if (/^\d+\./.test(line)) {
             checkPageBreak(10);
-            const num = line.match(/^(\d+)\./)[1];
-            let itemText = line.replace(/^\d+\.\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1');
-            
-            // Number circle
-            doc.setFillColor(59, 130, 246);
-            doc.circle(margin + 4, y - 1, 3, 'F');
-            doc.setFontSize(7);
-            doc.setTextColor(255, 255, 255);
-            doc.setFont('helvetica', 'bold');
-            doc.text(num, margin + 4, y + 0.5, { align: 'center' });
+            let itemText = line.replace(/\*\*(.*?)\*\*/g, '$1');
             
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(51, 65, 85);
             
-            const itemLines = doc.splitTextToSize(itemText, contentWidth - 12);
+            const itemLines = doc.splitTextToSize(itemText, contentWidth - 5);
             for (let j = 0; j < itemLines.length; j++) {
                 if (j > 0) checkPageBreak(4.5);
-                doc.text(itemLines[j], margin + 10, y);
+                doc.text(itemLines[j], margin + 5, y);
                 y += 4.5;
             }
             y += 1;
