@@ -680,27 +680,23 @@ function displayReport(analysis) {
 
 /**
  * Download report as professionally styled PDF
+ * Uses DOM-based rendering for reliable output
  */
 function downloadReportPDF() {
-    console.log('[AEGIS PDF] Starting download...', { cachedReport, currentResults });
-    
-    // Must have a generated report (cachedReport with analysis)
+    // Must have a generated report
     if (!cachedReport || !cachedReport.analysis) {
-        showAlert('Please generate a report first before downloading', 'warning');
-        console.warn('[AEGIS PDF] No cached report or analysis available');
+        showAlert('Please generate a report first', 'warning');
         return;
     }
     
-    const target = cachedReport.target || currentResults?.target || 'scan';
+    const target = cachedReport.target || currentResults?.target || 'Unknown';
     const score = cachedReport.scanResults?.security_score || currentResults?.security_score || 100;
     const timestamp = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     
-    // analysis can be a string or an object with .report property
+    // Get report content
     const reportContent = typeof cachedReport.analysis === 'string' 
         ? cachedReport.analysis 
-        : cachedReport.analysis?.report || 'No report content available.';
-    
-    console.log('[AEGIS PDF] Report content length:', reportContent?.length);
+        : cachedReport.analysis?.report || '';
     
     // Determine risk level
     let riskLevel, riskColor;
@@ -709,13 +705,13 @@ function downloadReportPDF() {
     else if (score >= 40) { riskLevel = 'HIGH RISK'; riskColor = '#f97316'; }
     else { riskLevel = 'CRITICAL RISK'; riskColor = '#ef4444'; }
     
-    // Simple markdown to HTML conversion
+    // Convert markdown to HTML
     const formattedContent = reportContent
-        .replace(/^## (.*$)/gim, '<h2 style="font-size: 16px; font-weight: 700; color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; margin: 25px 0 15px 0;">$1</h2>')
-        .replace(/^### (.*$)/gim, '<h3 style="font-size: 14px; font-weight: 600; color: #334155; margin: 20px 0 10px 0;">$1</h3>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>')
-        .replace(/^- (.*$)/gim, '<p style="margin: 6px 0; padding-left: 15px;">▸ $1</p>')
-        .replace(/`(.*?)`/g, '<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px;">$1</code>')
+        .replace(/^## (.*$)/gim, '<h2 style="font-size:14pt; font-weight:bold; color:#1e293b; border-bottom:2px solid #3b82f6; padding-bottom:6px; margin:20px 0 12px 0;">$1</h2>')
+        .replace(/^### (.*$)/gim, '<h3 style="font-size:12pt; font-weight:bold; color:#334155; margin:15px 0 8px 0;">$1</h3>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^- (.*$)/gim, '<p style="margin:4px 0 4px 20px;">• $1</p>')
+        .replace(/`(.*?)`/g, '<code style="background:#f1f5f9; padding:1px 4px; border-radius:3px; font-family:monospace; font-size:10pt;">$1</code>')
         .replace(/🟢/g, '<span style="color:#10b981">●</span>')
         .replace(/🟡/g, '<span style="color:#f59e0b">●</span>')
         .replace(/🟠/g, '<span style="color:#f97316">●</span>')
@@ -724,92 +720,116 @@ function downloadReportPDF() {
         .replace(/\n\n/g, '<br><br>')
         .replace(/\n/g, '<br>');
     
-    // Build PDF HTML content - A4 at 72 DPI = 595px width
-    const pdfHTML = `
-        <div style="font-family: Arial, Helvetica, sans-serif; padding: 30px; font-size: 12px; line-height: 1.5; color: #1e293b; background: white; width: 595px; box-sizing: border-box;">
+    // Create container - MUST be in viewport for html2canvas to work properly
+    const container = document.createElement('div');
+    container.id = 'pdf-render-container';
+    container.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 210mm;
+        min-height: 297mm;
+        background: white;
+        z-index: -9999;
+        opacity: 0;
+        pointer-events: none;
+    `;
+    
+    container.innerHTML = `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; padding: 20mm; font-size: 11pt; line-height: 1.6; color: #1e293b;">
             
             <!-- Header -->
-            <table style="width: 100%; border-collapse: collapse; border-bottom: 3px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px;">
-                <tr>
-                    <td style="vertical-align: bottom;">
-                        <div style="font-size: 22px; font-weight: 800; color: #0f172a;">AEGIS RECON</div>
-                        <div style="font-size: 10px; color: #64748b; margin-top: 3px; text-transform: uppercase; letter-spacing: 1px;">Threat Intelligence Report</div>
-                    </td>
-                    <td style="text-align: right; vertical-align: bottom;">
-                        <div style="font-size: 9px; color: #64748b;">CONFIDENTIAL</div>
-                        <div style="font-size: 11px; font-weight: 600; color: #0f172a;">${timestamp}</div>
-                    </td>
-                </tr>
-            </table>
-            
-            <!-- Summary Box -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
-                <table style="width: 100%; border-collapse: collapse;">
+            <div style="border-bottom: 3px solid #3b82f6; padding-bottom: 15px; margin-bottom: 25px;">
+                <table style="width: 100%;">
                     <tr>
-                        <td style="width: 40%; padding-right: 15px; border-right: 1px solid #cbd5e1; vertical-align: top;">
-                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Target Domain</div>
-                            <div style="font-size: 13px; font-weight: 700; color: #0f172a;">${target}</div>
+                        <td>
+                            <div style="font-size: 24pt; font-weight: bold; color: #0f172a;">AEGIS RECON</div>
+                            <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px;">Threat Intelligence Report</div>
                         </td>
-                        <td style="width: 30%; padding: 0 15px; text-align: center; border-right: 1px solid #cbd5e1; vertical-align: top;">
-                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Security Score</div>
-                            <div style="font-size: 26px; font-weight: 800; color: ${riskColor};">${score}</div>
-                        </td>
-                        <td style="width: 30%; padding-left: 15px; text-align: right; vertical-align: top;">
-                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Risk Level</div>
-                            <span style="display: inline-block; background: ${riskColor}; color: white; padding: 4px 12px; border-radius: 15px; font-size: 10px; font-weight: 700;">${riskLevel}</span>
+                        <td style="text-align: right; vertical-align: bottom;">
+                            <div style="font-size: 8pt; color: #64748b;">CONFIDENTIAL</div>
+                            <div style="font-size: 10pt; font-weight: 600; color: #0f172a;">${timestamp}</div>
                         </td>
                     </tr>
                 </table>
             </div>
             
-            <!-- Report Content -->
+            <!-- Summary Box -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 25px;">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="width: 45%; border-right: 1px solid #cbd5e1; padding-right: 18px;">
+                            <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600;">Target Domain</div>
+                            <div style="font-size: 14pt; font-weight: bold; color: #0f172a; margin-top: 4px;">${target}</div>
+                        </td>
+                        <td style="width: 25%; text-align: center; border-right: 1px solid #cbd5e1; padding: 0 18px;">
+                            <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600;">Security Score</div>
+                            <div style="font-size: 28pt; font-weight: bold; color: ${riskColor}; margin-top: 2px;">${score}</div>
+                        </td>
+                        <td style="width: 30%; text-align: right; padding-left: 18px;">
+                            <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600;">Risk Level</div>
+                            <div style="display: inline-block; background: ${riskColor}; color: white; padding: 6px 14px; border-radius: 20px; font-size: 9pt; font-weight: bold; margin-top: 6px;">${riskLevel}</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- Report Body -->
             <div style="margin-bottom: 30px;">
                 ${formattedContent}
             </div>
             
             <!-- Footer -->
-            <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 30px;">
-                <tr>
-                    <td style="font-size: 9px; color: #94a3b8; padding-top: 10px;">Generated by Aegis Recon AI • v${AUTHOR.version}</td>
-                    <td style="font-size: 9px; color: #94a3b8; text-align: right; padding-top: 10px;">© ${new Date().getFullYear()} ${AUTHOR.name}</td>
-                </tr>
-            </table>
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 30px;">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="font-size: 8pt; color: #94a3b8;">Generated by Aegis Recon AI • v${AUTHOR.version}</td>
+                        <td style="font-size: 8pt; color: #94a3b8; text-align: right;">© ${new Date().getFullYear()} ${AUTHOR.name}. All Rights Reserved.</td>
+                    </tr>
+                </table>
+            </div>
         </div>
     `;
     
-    console.log('[AEGIS PDF] Generating PDF...');
+    document.body.appendChild(container);
     
-    // PDF generation options - no margin since we handle it with padding
-    const options = {
-        margin: 0,
-        filename: `Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-            scale: 2,
-            useCORS: true, 
-            logging: false,
-            backgroundColor: '#ffffff',
-            windowWidth: 595
-        },
-        jsPDF: { 
-            unit: 'pt', 
-            format: 'a4', 
-            orientation: 'portrait' 
-        }
-    };
+    // Show loading state
+    showAlert('Generating PDF...', 'info');
     
-    // Generate PDF directly from HTML string
-    html2pdf()
-        .set(options)
-        .from(pdfHTML)
-        .save()
-        .then(() => {
-            showAlert('✓ Report Downloaded', 'success');
-        })
-        .catch(err => {
-            console.error('[AEGIS] PDF Error:', err);
-            showAlert('PDF generation failed', 'danger');
-        });
+    // Wait for DOM to fully render before capturing
+    setTimeout(() => {
+        const opt = {
+            margin: 0,
+            filename: `Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`,
+            image: { type: 'jpeg', quality: 0.95 },
+            html2canvas: { 
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                width: container.offsetWidth,
+                height: container.offsetHeight
+            },
+            jsPDF: { 
+                unit: 'mm', 
+                format: 'a4', 
+                orientation: 'portrait'
+            }
+        };
+        
+        html2pdf()
+            .set(opt)
+            .from(container)
+            .save()
+            .then(() => {
+                container.remove();
+                showAlert('✓ Report Downloaded', 'success');
+            })
+            .catch(err => {
+                container.remove();
+                console.error('[AEGIS] PDF Error:', err);
+                showAlert('PDF generation failed: ' + err.message, 'danger');
+            });
+    }, 100); // Small delay to ensure render completes
 }
 // ============================================================================
 // UTILITIES
