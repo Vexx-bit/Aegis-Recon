@@ -682,15 +682,21 @@ function displayReport(analysis) {
  * Download report as professionally styled PDF
  */
 function downloadReportPDF() {
-    if (!cachedReport && !currentResults) {
-        showAlert('No report to download', 'warning');
+    console.log('[AEGIS PDF] Starting download...', { cachedReport, currentResults });
+    
+    // Must have a generated report (cachedReport with analysis)
+    if (!cachedReport || !cachedReport.analysis) {
+        showAlert('Please generate a report first before downloading', 'warning');
+        console.warn('[AEGIS PDF] No cached report or analysis available');
         return;
     }
     
-    const target = cachedReport?.target || currentResults?.target || 'scan';
-    const score = cachedReport?.scanResults?.security_score || currentResults?.security_score || 100;
+    const target = cachedReport.target || currentResults?.target || 'scan';
+    const score = cachedReport.scanResults?.security_score || currentResults?.security_score || 100;
     const timestamp = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const reportContent = cachedReport?.analysis || 'No report content available.';
+    const reportContent = cachedReport.analysis;
+    
+    console.log('[AEGIS PDF] Report content length:', reportContent.length);
     
     // Determine risk level
     let riskLevel, riskColor;
@@ -788,6 +794,8 @@ function downloadReportPDF() {
             orientation: 'portrait' 
         }
     };
+    
+    console.log('[AEGIS PDF] Generating PDF...');
     
     // Generate PDF from the container content
     html2pdf()
