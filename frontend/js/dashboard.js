@@ -679,7 +679,7 @@ function displayReport(analysis) {
 }
 /**
  * Download report as PDF using jsPDF directly
- * No html2canvas - 100% reliable text-based PDF generation
+ * Premium professional design with enhanced visual elements
  */
 function downloadReportPDF() {
     if (!cachedReport || !cachedReport.analysis) {
@@ -689,214 +689,269 @@ function downloadReportPDF() {
     
     const target = cachedReport.target || currentResults?.target || 'Unknown';
     const score = cachedReport.scanResults?.security_score || currentResults?.security_score || 100;
-    const timestamp = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timestamp = new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+    });
+    const timeGenerated = new Date().toLocaleTimeString('en-US', { 
+        hour: '2-digit', minute: '2-digit' 
+    });
     
     // Get report content
     const reportContent = typeof cachedReport.analysis === 'string' 
         ? cachedReport.analysis 
         : cachedReport.analysis?.report || '';
     
-    // Determine risk level
-    let riskLevel, riskColor;
-    if (score >= 80) { riskLevel = 'LOW RISK'; riskColor = [16, 185, 129]; }
-    else if (score >= 60) { riskLevel = 'MEDIUM RISK'; riskColor = [245, 158, 11]; }
-    else if (score >= 40) { riskLevel = 'HIGH RISK'; riskColor = [249, 115, 22]; }
-    else { riskLevel = 'CRITICAL RISK'; riskColor = [239, 68, 68]; }
+    // Determine risk level with colors
+    let riskLevel, riskColor, riskBg;
+    if (score >= 80) { 
+        riskLevel = 'LOW RISK'; 
+        riskColor = [16, 185, 129]; 
+        riskBg = [220, 252, 231];
+    } else if (score >= 60) { 
+        riskLevel = 'MEDIUM RISK'; 
+        riskColor = [245, 158, 11]; 
+        riskBg = [254, 243, 199];
+    } else if (score >= 40) { 
+        riskLevel = 'HIGH RISK'; 
+        riskColor = [249, 115, 22]; 
+        riskBg = [255, 237, 213];
+    } else { 
+        riskLevel = 'CRITICAL'; 
+        riskColor = [239, 68, 68]; 
+        riskBg = [254, 226, 226];
+    }
     
-    // Initialize jsPDF (A4: 210 x 297 mm)
+    // Initialize jsPDF
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-    });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     
     const pageWidth = 210;
     const pageHeight = 297;
-    const margin = 20;
+    const margin = 15;
     const contentWidth = pageWidth - (margin * 2);
-    let y = margin;
+    let y = 0;
     
-    // Helper: Add new page if needed
-    function checkPageBreak(neededHeight) {
-        if (y + neededHeight > pageHeight - margin) {
+    // ========== HEADER BANNER ==========
+    // Dark header background
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 45, 'F');
+    
+    // Blue accent strip at top
+    doc.setFillColor(59, 130, 246);
+    doc.rect(0, 0, pageWidth, 3, 'F');
+    
+    // Shield icon (drawn with shapes)
+    doc.setFillColor(59, 130, 246);
+    doc.roundedRect(margin, 12, 22, 25, 3, 3, 'F');
+    doc.setFillColor(30, 64, 175);
+    doc.roundedRect(margin + 2, 14, 18, 21, 2, 2, 'F');
+    doc.setFillColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AR', margin + 11, 27, { align: 'center' });
+    
+    // Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AEGIS RECON', margin + 28, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'normal');
+    doc.text('THREAT INTELLIGENCE REPORT', margin + 28, 30);
+    
+    // Right side - Date & Classification
+    doc.setFontSize(8);
+    doc.setTextColor(239, 68, 68);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CONFIDENTIAL', pageWidth - margin, 15, { align: 'right' });
+    
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(timestamp, pageWidth - margin, 23, { align: 'right' });
+    doc.text(timeGenerated, pageWidth - margin, 30, { align: 'right' });
+    
+    y = 55;
+    
+    // ========== SUMMARY CARD ==========
+    // Card background with shadow effect
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(margin - 1, y - 1, contentWidth + 2, 37, 4, 4, 'F');
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, y, contentWidth, 35, 3, 3, 'FD');
+    
+    // Column widths
+    const col1 = margin + 5;
+    const col2 = margin + 70;
+    const col3 = margin + 115;
+    
+    // Vertical dividers
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(margin + 65, y + 5, margin + 65, y + 30);
+    doc.line(margin + 110, y + 5, margin + 110, y + 30);
+    
+    // Target Domain
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TARGET DOMAIN', col1, y + 10);
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    // Truncate long domains
+    const displayTarget = target.length > 25 ? target.substring(0, 22) + '...' : target;
+    doc.text(displayTarget, col1, y + 20);
+    
+    // Security Score with circular indicator
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text('SECURITY SCORE', col2, y + 10);
+    
+    // Score circle background
+    doc.setFillColor(riskBg[0], riskBg[1], riskBg[2]);
+    doc.circle(col2 + 15, y + 22, 10, 'F');
+    doc.setFontSize(16);
+    doc.setTextColor(riskColor[0], riskColor[1], riskColor[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(score), col2 + 15, y + 26, { align: 'center' });
+    
+    // Risk Level
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text('RISK ASSESSMENT', col3, y + 10);
+    
+    // Risk badge
+    doc.setFillColor(riskColor[0], riskColor[1], riskColor[2]);
+    doc.roundedRect(col3, y + 15, 50, 12, 6, 6, 'F');
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text(riskLevel, col3 + 25, y + 23, { align: 'center' });
+    
+    y += 45;
+    
+    // ========== REPORT CONTENT ==========
+    const lines = reportContent.split('\n');
+    
+    // Helper function for page breaks
+    function checkPageBreak(needed) {
+        if (y + needed > pageHeight - 25) {
             doc.addPage();
-            y = margin;
+            y = 20;
             return true;
         }
         return false;
     }
     
-    // Helper: Draw text with word wrap
-    function addWrappedText(text, x, maxWidth, fontSize, fontStyle = 'normal') {
-        doc.setFontSize(fontSize);
-        doc.setFont('helvetica', fontStyle);
-        const lines = doc.splitTextToSize(text, maxWidth);
-        const lineHeight = fontSize * 0.4;
-        
-        for (let i = 0; i < lines.length; i++) {
-            checkPageBreak(lineHeight);
-            doc.text(lines[i], x, y);
-            y += lineHeight;
-        }
-        return lines.length * lineHeight;
-    }
-    
-    // ========== HEADER ==========
-    doc.setFillColor(59, 130, 246); // Blue accent line
-    doc.rect(margin, y, contentWidth, 2, 'F');
-    y += 8;
-    
-    doc.setTextColor(15, 23, 42);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('AEGIS RECON', margin, y);
-    
-    doc.setFontSize(9);
-    doc.setTextColor(100, 116, 139);
-    doc.setFont('helvetica', 'normal');
-    doc.text('THREAT INTELLIGENCE REPORT', margin, y + 6);
-    
-    doc.setFontSize(9);
-    doc.text('CONFIDENTIAL', pageWidth - margin, y - 2, { align: 'right' });
-    doc.setFontSize(10);
-    doc.setTextColor(15, 23, 42);
-    doc.text(timestamp, pageWidth - margin, y + 4, { align: 'right' });
-    
-    y += 15;
-    doc.setDrawColor(226, 232, 240);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 10;
-    
-    // ========== SUMMARY BOX ==========
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(margin, y, contentWidth, 30, 3, 3, 'FD');
-    
-    // Target
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TARGET DOMAIN', margin + 5, y + 8);
-    doc.setFontSize(12);
-    doc.setTextColor(15, 23, 42);
-    doc.setFont('helvetica', 'bold');
-    doc.text(target, margin + 5, y + 16);
-    
-    // Score
-    const scoreX = margin + 75;
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text('SECURITY SCORE', scoreX, y + 8);
-    doc.setFontSize(22);
-    doc.setTextColor(riskColor[0], riskColor[1], riskColor[2]);
-    doc.setFont('helvetica', 'bold');
-    doc.text(String(score), scoreX + 15, y + 20);
-    
-    // Risk Level
-    const riskX = margin + 120;
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text('RISK LEVEL', riskX, y + 8);
-    
-    // Risk badge
-    doc.setFillColor(riskColor[0], riskColor[1], riskColor[2]);
-    doc.roundedRect(riskX, y + 12, 45, 10, 5, 5, 'F');
-    doc.setFontSize(8);
-    doc.setTextColor(255, 255, 255);
-    doc.text(riskLevel, riskX + 22.5, y + 18.5, { align: 'center' });
-    
-    y += 40;
-    
-    // ========== REPORT CONTENT ==========
-    doc.setTextColor(30, 41, 59);
-    
-    // Parse markdown and render
-    const lines = reportContent.split('\n');
-    
     for (let i = 0; i < lines.length; i++) {
         let line = lines[i].trim();
-        if (!line) {
-            y += 3;
-            continue;
-        }
+        if (!line) { y += 2; continue; }
         
-        // Skip metadata lines
-        if (line.startsWith('*Report generated') || line.startsWith('---')) {
-            continue;
-        }
+        // Skip metadata
+        if (line.startsWith('*Report generated') || line.startsWith('---')) continue;
         
-        // H2 Headers
+        // H2 Headers - Section titles
         if (line.startsWith('## ')) {
-            checkPageBreak(15);
-            y += 5;
-            doc.setFontSize(14);
+            checkPageBreak(18);
+            y += 8;
+            
+            // Blue left border
+            doc.setFillColor(59, 130, 246);
+            doc.rect(margin, y - 4, 3, 10, 'F');
+            
+            doc.setFontSize(13);
             doc.setFont('helvetica', 'bold');
-            doc.setTextColor(30, 41, 59);
-            doc.text(line.replace('## ', ''), margin, y);
-            y += 2;
-            doc.setDrawColor(59, 130, 246);
-            doc.setLineWidth(0.5);
-            doc.line(margin, y, margin + 60, y);
-            y += 6;
+            doc.setTextColor(15, 23, 42);
+            doc.text(line.replace('## ', ''), margin + 6, y + 2);
+            
+            y += 10;
             continue;
         }
         
         // H3 Headers
         if (line.startsWith('### ')) {
             checkPageBreak(12);
-            y += 3;
+            y += 4;
             doc.setFontSize(11);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(51, 65, 85);
             doc.text(line.replace('### ', ''), margin, y);
-            y += 5;
+            y += 6;
             continue;
         }
         
-        // Bullet points
+        // Bullet points with colored dots
         if (line.startsWith('- ') || line.startsWith('▸')) {
-            checkPageBreak(8);
+            checkPageBreak(10);
             let bulletText = line.replace(/^[-▸]\s*/, '');
-            // Handle emojis
-            bulletText = bulletText.replace(/🟢/g, '●').replace(/🟡/g, '●').replace(/🟠/g, '●').replace(/🔴/g, '●').replace(/⚠️/g, '!');
-            // Remove markdown formatting
-            bulletText = bulletText.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '$1');
+            
+            // Check for warning indicators
+            let bulletColor = [59, 130, 246]; // Default blue
+            if (bulletText.includes('⚠️') || bulletText.includes('!')) {
+                bulletColor = [245, 158, 11]; // Warning orange
+            }
+            if (bulletText.includes('🟢')) bulletColor = [16, 185, 129];
+            if (bulletText.includes('🟡')) bulletColor = [245, 158, 11];
+            if (bulletText.includes('🟠')) bulletColor = [249, 115, 22];
+            if (bulletText.includes('🔴')) bulletColor = [239, 68, 68];
+            
+            // Clean emojis
+            bulletText = bulletText.replace(/[🟢🟡🟠🔴⚠️]/g, '').trim();
+            bulletText = bulletText.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '"$1"');
+            
+            // Draw bullet
+            doc.setFillColor(bulletColor[0], bulletColor[1], bulletColor[2]);
+            doc.circle(margin + 4, y - 1, 1.5, 'F');
             
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
-            doc.setTextColor(71, 85, 105);
-            doc.text('•', margin + 3, y);
+            doc.setTextColor(51, 65, 85);
             
-            const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 10);
+            const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 12);
             for (let j = 0; j < bulletLines.length; j++) {
-                checkPageBreak(5);
-                doc.text(bulletLines[j], margin + 8, y);
-                y += 5;
+                if (j > 0) checkPageBreak(4.5);
+                doc.text(bulletLines[j], margin + 10, y);
+                y += 4.5;
             }
+            y += 1;
             continue;
         }
         
         // Numbered items
         if (/^\d+\./.test(line)) {
-            checkPageBreak(8);
-            let itemText = line.replace(/\*\*(.*?)\*\*/g, '$1');
+            checkPageBreak(10);
+            const num = line.match(/^(\d+)\./)[1];
+            let itemText = line.replace(/^\d+\.\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1');
+            
+            // Number circle
+            doc.setFillColor(59, 130, 246);
+            doc.circle(margin + 4, y - 1, 3, 'F');
+            doc.setFontSize(7);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text(num, margin + 4, y + 0.5, { align: 'center' });
+            
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
-            doc.setTextColor(71, 85, 105);
+            doc.setTextColor(51, 65, 85);
             
-            const itemLines = doc.splitTextToSize(itemText, contentWidth - 5);
+            const itemLines = doc.splitTextToSize(itemText, contentWidth - 12);
             for (let j = 0; j < itemLines.length; j++) {
-                checkPageBreak(5);
-                doc.text(itemLines[j], margin + 3, y);
-                y += 5;
+                if (j > 0) checkPageBreak(4.5);
+                doc.text(itemLines[j], margin + 10, y);
+                y += 4.5;
             }
+            y += 1;
             continue;
         }
         
-        // Regular paragraphs
-        line = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '$1');
-        line = line.replace(/🟢/g, '●').replace(/🟡/g, '●').replace(/🟠/g, '●').replace(/🔴/g, '●').replace(/⚠️/g, '!');
+        // Regular text
+        line = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '"$1"');
+        line = line.replace(/[🟢🟡🟠🔴⚠️]/g, '');
         
         if (line.length > 0) {
             checkPageBreak(6);
@@ -906,26 +961,39 @@ function downloadReportPDF() {
             
             const paraLines = doc.splitTextToSize(line, contentWidth);
             for (let j = 0; j < paraLines.length; j++) {
-                checkPageBreak(5);
+                checkPageBreak(4.5);
                 doc.text(paraLines[j], margin, y);
-                y += 5;
+                y += 4.5;
             }
             y += 2;
         }
     }
     
-    // ========== FOOTER ==========
+    // ========== FOOTER ON ALL PAGES ==========
     const totalPages = doc.internal.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
         doc.setPage(p);
+        
+        // Footer line
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
+        
+        // Footer text
         doc.setFontSize(8);
         doc.setTextColor(148, 163, 184);
-        doc.text(`Generated by Aegis Recon AI • v${AUTHOR.version}`, margin, pageHeight - 10);
-        doc.text(`© ${new Date().getFullYear()} ${AUTHOR.name}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
-        doc.text(`Page ${p} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Aegis Recon AI v${AUTHOR.version}`, margin, pageHeight - 12);
+        doc.text(`Page ${p} of ${totalPages}`, pageWidth / 2, pageHeight - 12, { align: 'center' });
+        doc.text(`© ${new Date().getFullYear()} ${AUTHOR.name}`, pageWidth - margin, pageHeight - 12, { align: 'right' });
+        
+        // Small branding
+        doc.setFontSize(7);
+        doc.setTextColor(180, 190, 200);
+        doc.text('github.com/Vexx-bit/Aegis-Recon', pageWidth / 2, pageHeight - 8, { align: 'center' });
     }
     
-    // Save
+    // Save PDF
     doc.save(`Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`);
     showAlert('✓ Report Downloaded', 'success');
 }
