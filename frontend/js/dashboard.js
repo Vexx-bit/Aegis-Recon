@@ -576,6 +576,7 @@ function displaySecurityHeaders(headersData) {
                 border-radius: 50%; 
                 background: ${gradeColors[headersData.grade] || '#6b7280'};
                 display: flex; align-items: center; justify-content: center;
+                flex-shrink: 0;
             ">
                 <span style="color: white; font-weight: bold; font-size: 1.5rem;">${headersData.grade}</span>
             </div>
@@ -588,20 +589,26 @@ function displaySecurityHeaders(headersData) {
     
     if (headersData.headers_missing && headersData.headers_missing.length > 0) {
         html += '<div class="mb-2"><small class="text-danger"><i class="bi bi-exclamation-triangle"></i> Missing Headers:</small></div>';
-        html += '<div class="d-flex flex-wrap gap-1 mb-2">';
+        html += '<ul class="list-unstyled mb-2" style="font-size: 0.75rem;">';
         headersData.headers_missing.forEach(h => {
-            html += `<span class="badge bg-danger bg-opacity-25 text-danger" title="${h.description}">${h.name}</span>`;
+            html += `<li class="py-1 border-bottom border-secondary d-flex align-items-center">
+                <i class="bi bi-x-circle text-danger me-2"></i>
+                <span class="text-light">${h.name}</span>
+            </li>`;
         });
-        html += '</div>';
+        html += '</ul>';
     }
     
     if (headersData.headers_found && headersData.headers_found.length > 0) {
         html += '<div class="mb-2"><small class="text-success"><i class="bi bi-check-circle"></i> Found Headers:</small></div>';
-        html += '<div class="d-flex flex-wrap gap-1">';
+        html += '<ul class="list-unstyled mb-0" style="font-size: 0.75rem;">';
         headersData.headers_found.forEach(h => {
-            html += `<span class="badge bg-success bg-opacity-25 text-success">${h.name}</span>`;
+            html += `<li class="py-1 d-flex align-items-center">
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                <span class="text-light">${h.name}</span>
+            </li>`;
         });
-        html += '</div>';
+        html += '</ul>';
     }
     
     container.innerHTML = html;
