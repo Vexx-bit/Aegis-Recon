@@ -694,9 +694,13 @@ function downloadReportPDF() {
     const target = cachedReport.target || currentResults?.target || 'scan';
     const score = cachedReport.scanResults?.security_score || currentResults?.security_score || 100;
     const timestamp = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const reportContent = cachedReport.analysis;
     
-    console.log('[AEGIS PDF] Report content length:', reportContent.length);
+    // analysis can be a string or an object with .report property
+    const reportContent = typeof cachedReport.analysis === 'string' 
+        ? cachedReport.analysis 
+        : cachedReport.analysis?.report || 'No report content available.';
+    
+    console.log('[AEGIS PDF] Report content length:', reportContent?.length);
     
     // Determine risk level
     let riskLevel, riskColor;
