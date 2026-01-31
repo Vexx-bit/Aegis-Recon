@@ -804,7 +804,7 @@ function downloadReportPDF() {
     // Generate PDF from the container content
     html2pdf()
         .set(options)
-        .from(pdfContainer.firstChild)
+        .from(pdfContainer)
         .save()
         .then(() => {
             pdfContainer.remove();
