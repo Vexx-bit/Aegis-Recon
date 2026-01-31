@@ -677,13 +677,11 @@ function displayReport(analysis) {
         </div>
     `;
 }
-
 /**
- * Download report as professionally styled PDF
- * Uses DOM-based rendering for reliable output
+ * Download report as PDF using jsPDF directly
+ * No html2canvas - 100% reliable text-based PDF generation
  */
 function downloadReportPDF() {
-    // Must have a generated report
     if (!cachedReport || !cachedReport.analysis) {
         showAlert('Please generate a report first', 'warning');
         return;
@@ -700,136 +698,236 @@ function downloadReportPDF() {
     
     // Determine risk level
     let riskLevel, riskColor;
-    if (score >= 80) { riskLevel = 'LOW RISK'; riskColor = '#10b981'; }
-    else if (score >= 60) { riskLevel = 'MEDIUM RISK'; riskColor = '#f59e0b'; }
-    else if (score >= 40) { riskLevel = 'HIGH RISK'; riskColor = '#f97316'; }
-    else { riskLevel = 'CRITICAL RISK'; riskColor = '#ef4444'; }
+    if (score >= 80) { riskLevel = 'LOW RISK'; riskColor = [16, 185, 129]; }
+    else if (score >= 60) { riskLevel = 'MEDIUM RISK'; riskColor = [245, 158, 11]; }
+    else if (score >= 40) { riskLevel = 'HIGH RISK'; riskColor = [249, 115, 22]; }
+    else { riskLevel = 'CRITICAL RISK'; riskColor = [239, 68, 68]; }
     
-    // Convert markdown to HTML
-    const formattedContent = reportContent
-        .replace(/^## (.*$)/gim, '<h2 style="font-size:14pt; font-weight:bold; color:#1e293b; border-bottom:2px solid #3b82f6; padding-bottom:6px; margin:20px 0 12px 0;">$1</h2>')
-        .replace(/^### (.*$)/gim, '<h3 style="font-size:12pt; font-weight:bold; color:#334155; margin:15px 0 8px 0;">$1</h3>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/^- (.*$)/gim, '<p style="margin:4px 0 4px 20px;">• $1</p>')
-        .replace(/`(.*?)`/g, '<code style="background:#f1f5f9; padding:1px 4px; border-radius:3px; font-family:monospace; font-size:10pt;">$1</code>')
-        .replace(/🟢/g, '<span style="color:#10b981">●</span>')
-        .replace(/🟡/g, '<span style="color:#f59e0b">●</span>')
-        .replace(/🟠/g, '<span style="color:#f97316">●</span>')
-        .replace(/🔴/g, '<span style="color:#ef4444">●</span>')
-        .replace(/⚠️/g, '<span style="color:#f59e0b">⚠</span>')
-        .replace(/\n\n/g, '<br><br>')
-        .replace(/\n/g, '<br>');
+    // Initialize jsPDF (A4: 210 x 297 mm)
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+    });
     
-    // Create container - MUST be in viewport for html2canvas to work properly
-    const container = document.createElement('div');
-    container.id = 'pdf-render-container';
-    container.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 210mm;
-        min-height: 297mm;
-        background: white;
-        z-index: -9999;
-        opacity: 0;
-        pointer-events: none;
-    `;
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
+    let y = margin;
     
-    container.innerHTML = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; padding: 20mm; font-size: 11pt; line-height: 1.6; color: #1e293b;">
-            
-            <!-- Header -->
-            <div style="border-bottom: 3px solid #3b82f6; padding-bottom: 15px; margin-bottom: 25px;">
-                <table style="width: 100%;">
-                    <tr>
-                        <td>
-                            <div style="font-size: 24pt; font-weight: bold; color: #0f172a;">AEGIS RECON</div>
-                            <div style="font-size: 9pt; color: #64748b; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px;">Threat Intelligence Report</div>
-                        </td>
-                        <td style="text-align: right; vertical-align: bottom;">
-                            <div style="font-size: 8pt; color: #64748b;">CONFIDENTIAL</div>
-                            <div style="font-size: 10pt; font-weight: 600; color: #0f172a;">${timestamp}</div>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            
-            <!-- Summary Box -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 25px;">
-                <table style="width: 100%;">
-                    <tr>
-                        <td style="width: 45%; border-right: 1px solid #cbd5e1; padding-right: 18px;">
-                            <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600;">Target Domain</div>
-                            <div style="font-size: 14pt; font-weight: bold; color: #0f172a; margin-top: 4px;">${target}</div>
-                        </td>
-                        <td style="width: 25%; text-align: center; border-right: 1px solid #cbd5e1; padding: 0 18px;">
-                            <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600;">Security Score</div>
-                            <div style="font-size: 28pt; font-weight: bold; color: ${riskColor}; margin-top: 2px;">${score}</div>
-                        </td>
-                        <td style="width: 30%; text-align: right; padding-left: 18px;">
-                            <div style="font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600;">Risk Level</div>
-                            <div style="display: inline-block; background: ${riskColor}; color: white; padding: 6px 14px; border-radius: 20px; font-size: 9pt; font-weight: bold; margin-top: 6px;">${riskLevel}</div>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            
-            <!-- Report Body -->
-            <div style="margin-bottom: 30px;">
-                ${formattedContent}
-            </div>
-            
-            <!-- Footer -->
-            <div style="border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 30px;">
-                <table style="width: 100%;">
-                    <tr>
-                        <td style="font-size: 8pt; color: #94a3b8;">Generated by Aegis Recon AI • v${AUTHOR.version}</td>
-                        <td style="font-size: 8pt; color: #94a3b8; text-align: right;">© ${new Date().getFullYear()} ${AUTHOR.name}. All Rights Reserved.</td>
-                    </tr>
-                </table>
-            </div>
-        </div>
-    `;
+    // Helper: Add new page if needed
+    function checkPageBreak(neededHeight) {
+        if (y + neededHeight > pageHeight - margin) {
+            doc.addPage();
+            y = margin;
+            return true;
+        }
+        return false;
+    }
     
-    document.body.appendChild(container);
-    
-    // Show loading state
-    showAlert('Generating PDF...', 'info');
-    
-    // Wait for DOM to fully render before capturing
-    setTimeout(() => {
-        const opt = {
-            margin: 0,
-            filename: `Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`,
-            image: { type: 'jpeg', quality: 0.95 },
-            html2canvas: { 
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                width: container.offsetWidth,
-                height: container.offsetHeight
-            },
-            jsPDF: { 
-                unit: 'mm', 
-                format: 'a4', 
-                orientation: 'portrait'
-            }
-        };
+    // Helper: Draw text with word wrap
+    function addWrappedText(text, x, maxWidth, fontSize, fontStyle = 'normal') {
+        doc.setFontSize(fontSize);
+        doc.setFont('helvetica', fontStyle);
+        const lines = doc.splitTextToSize(text, maxWidth);
+        const lineHeight = fontSize * 0.4;
         
-        html2pdf()
-            .set(opt)
-            .from(container)
-            .save()
-            .then(() => {
-                container.remove();
-                showAlert('✓ Report Downloaded', 'success');
-            })
-            .catch(err => {
-                container.remove();
-                console.error('[AEGIS] PDF Error:', err);
-                showAlert('PDF generation failed: ' + err.message, 'danger');
-            });
-    }, 100); // Small delay to ensure render completes
+        for (let i = 0; i < lines.length; i++) {
+            checkPageBreak(lineHeight);
+            doc.text(lines[i], x, y);
+            y += lineHeight;
+        }
+        return lines.length * lineHeight;
+    }
+    
+    // ========== HEADER ==========
+    doc.setFillColor(59, 130, 246); // Blue accent line
+    doc.rect(margin, y, contentWidth, 2, 'F');
+    y += 8;
+    
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AEGIS RECON', margin, y);
+    
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.setFont('helvetica', 'normal');
+    doc.text('THREAT INTELLIGENCE REPORT', margin, y + 6);
+    
+    doc.setFontSize(9);
+    doc.text('CONFIDENTIAL', pageWidth - margin, y - 2, { align: 'right' });
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text(timestamp, pageWidth - margin, y + 4, { align: 'right' });
+    
+    y += 15;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+    
+    // ========== SUMMARY BOX ==========
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, y, contentWidth, 30, 3, 3, 'FD');
+    
+    // Target
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TARGET DOMAIN', margin + 5, y + 8);
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    doc.text(target, margin + 5, y + 16);
+    
+    // Score
+    const scoreX = margin + 75;
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('SECURITY SCORE', scoreX, y + 8);
+    doc.setFontSize(22);
+    doc.setTextColor(riskColor[0], riskColor[1], riskColor[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(score), scoreX + 15, y + 20);
+    
+    // Risk Level
+    const riskX = margin + 120;
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('RISK LEVEL', riskX, y + 8);
+    
+    // Risk badge
+    doc.setFillColor(riskColor[0], riskColor[1], riskColor[2]);
+    doc.roundedRect(riskX, y + 12, 45, 10, 5, 5, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text(riskLevel, riskX + 22.5, y + 18.5, { align: 'center' });
+    
+    y += 40;
+    
+    // ========== REPORT CONTENT ==========
+    doc.setTextColor(30, 41, 59);
+    
+    // Parse markdown and render
+    const lines = reportContent.split('\n');
+    
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line) {
+            y += 3;
+            continue;
+        }
+        
+        // Skip metadata lines
+        if (line.startsWith('*Report generated') || line.startsWith('---')) {
+            continue;
+        }
+        
+        // H2 Headers
+        if (line.startsWith('## ')) {
+            checkPageBreak(15);
+            y += 5;
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text(line.replace('## ', ''), margin, y);
+            y += 2;
+            doc.setDrawColor(59, 130, 246);
+            doc.setLineWidth(0.5);
+            doc.line(margin, y, margin + 60, y);
+            y += 6;
+            continue;
+        }
+        
+        // H3 Headers
+        if (line.startsWith('### ')) {
+            checkPageBreak(12);
+            y += 3;
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(51, 65, 85);
+            doc.text(line.replace('### ', ''), margin, y);
+            y += 5;
+            continue;
+        }
+        
+        // Bullet points
+        if (line.startsWith('- ') || line.startsWith('▸')) {
+            checkPageBreak(8);
+            let bulletText = line.replace(/^[-▸]\s*/, '');
+            // Handle emojis
+            bulletText = bulletText.replace(/🟢/g, '●').replace(/🟡/g, '●').replace(/🟠/g, '●').replace(/🔴/g, '●').replace(/⚠️/g, '!');
+            // Remove markdown formatting
+            bulletText = bulletText.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '$1');
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(71, 85, 105);
+            doc.text('•', margin + 3, y);
+            
+            const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 10);
+            for (let j = 0; j < bulletLines.length; j++) {
+                checkPageBreak(5);
+                doc.text(bulletLines[j], margin + 8, y);
+                y += 5;
+            }
+            continue;
+        }
+        
+        // Numbered items
+        if (/^\d+\./.test(line)) {
+            checkPageBreak(8);
+            let itemText = line.replace(/\*\*(.*?)\*\*/g, '$1');
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(71, 85, 105);
+            
+            const itemLines = doc.splitTextToSize(itemText, contentWidth - 5);
+            for (let j = 0; j < itemLines.length; j++) {
+                checkPageBreak(5);
+                doc.text(itemLines[j], margin + 3, y);
+                y += 5;
+            }
+            continue;
+        }
+        
+        // Regular paragraphs
+        line = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '$1');
+        line = line.replace(/🟢/g, '●').replace(/🟡/g, '●').replace(/🟠/g, '●').replace(/🔴/g, '●').replace(/⚠️/g, '!');
+        
+        if (line.length > 0) {
+            checkPageBreak(6);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(71, 85, 105);
+            
+            const paraLines = doc.splitTextToSize(line, contentWidth);
+            for (let j = 0; j < paraLines.length; j++) {
+                checkPageBreak(5);
+                doc.text(paraLines[j], margin, y);
+                y += 5;
+            }
+            y += 2;
+        }
+    }
+    
+    // ========== FOOTER ==========
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Generated by Aegis Recon AI • v${AUTHOR.version}`, margin, pageHeight - 10);
+        doc.text(`© ${new Date().getFullYear()} ${AUTHOR.name}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+        doc.text(`Page ${p} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+    
+    // Save
+    doc.save(`Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`);
+    showAlert('✓ Report Downloaded', 'success');
 }
 // ============================================================================
 // UTILITIES
