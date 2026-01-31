@@ -100,6 +100,32 @@ class handler(BaseHTTPRequestHandler):
             for host in phases.get('hosts', []):
                 all_ports.extend(host.get('ports', []))
             
+            # Get new security check data
+            headers_info = scan_results.get('security_headers', {})
+            headers_grade = headers_info.get('grade', 'Unknown')
+            missing_headers = [h['name'] for h in headers_info.get('headers_missing', [])]
+            
+            ssl_info = scan_results.get('ssl_info', {})
+            ssl_valid = ssl_info.get('valid', False)
+            ssl_issuer = ssl_info.get('issuer', 'Unknown')
+            ssl_tls = ssl_info.get('tls_version', 'Unknown')
+            ssl_days = ssl_info.get('days_until_expiry', 'Unknown')
+            
+            cves = scan_results.get('known_cves', [])
+            cve_list = [f"{c['cve']} ({c['severity']}) - {c['technology']}" for c in cves]
+            
+            admin_panels = scan_results.get('admin_panels', {}).get('found', [])
+            accessible_panels = [p['path'] for p in admin_panels if p.get('accessible')]
+            protected_panels = [p['path'] for p in admin_panels if not p.get('accessible')]
+            
+            robots_data = scan_results.get('robots_txt', {})
+            sensitive_paths = [p['path'] for p in robots_data.get('sensitive_paths', [])]
+            
+            dir_listing = scan_results.get('directory_listing', {})
+            exposed_dirs = dir_listing.get('exposed_dirs', [])
+            
+            score_factors = scan_results.get('score_factors', [])
+            
             prompt = f"""You are a senior cybersecurity consultant preparing a comprehensive threat intelligence report for {target}.
 
 RECONNAISSANCE DATA:
@@ -111,30 +137,60 @@ RECONNAISSANCE DATA:
 - Email Addresses Exposed: {email_count}
 - Technology Stack: {', '.join(tech_list) if tech_list else 'None detected'}
 
+SECURITY HEADERS ANALYSIS:
+- Grade: {headers_grade}
+- Missing Headers: {', '.join(missing_headers) if missing_headers else 'None'}
+
+SSL/TLS CERTIFICATE:
+- Valid: {ssl_valid}
+- Issuer: {ssl_issuer}
+- TLS Version: {ssl_tls}
+- Days Until Expiry: {ssl_days}
+
+KNOWN VULNERABILITIES (CVEs):
+{chr(10).join(cve_list) if cve_list else 'No known CVEs detected'}
+
+ADMIN PANELS DETECTED:
+- Accessible (No Auth): {', '.join(accessible_panels) if accessible_panels else 'None'}
+- Protected: {', '.join(protected_panels) if protected_panels else 'None'}
+
+ROBOTS.TXT SENSITIVE PATHS:
+{', '.join(sensitive_paths) if sensitive_paths else 'None found'}
+
+DIRECTORY LISTING:
+- Vulnerable: {dir_listing.get('vulnerable', False)}
+- Exposed Directories: {', '.join(exposed_dirs) if exposed_dirs else 'None'}
+
+SCORE BREAKDOWN:
+{chr(10).join(score_factors) if score_factors else 'No detailed breakdown available'}
+
 Generate a DETAILED professional threat assessment report with the following sections:
 
 ## Executive Summary
-Provide a comprehensive 4-5 sentence overview of the target's security posture, key concerns, and overall risk profile.
+Provide a comprehensive 4-5 sentence overview of the target's security posture, key concerns, and overall risk profile. Reference the security score and major findings.
 
 ## Key Findings
 Provide detailed bullet points for each discovery:
-- Subdomain analysis and implications
-- Host enumeration results and exposure level
-- Port analysis with specific risks for each open port
-- Email exposure and social engineering risks
-- Technology stack vulnerabilities and version concerns
+- Security Headers analysis and implications for XSS/clickjacking protection
+- SSL/TLS configuration assessment
+- Known CVEs affecting detected technologies
+- Admin panel exposure risks
+- Subdomain and email enumeration results
+- Open port analysis with specific risks
 
 ## Risk Assessment
 Provide a thorough risk analysis including:
-- Overall risk rating with detailed justification
-- Attack surface analysis
-- Potential threat vectors
+- Overall risk rating (Critical/High/Medium/Low) with detailed justification
+- Attack surface analysis based on all findings
+- Potential threat vectors and exploitation paths
 - Business impact considerations
 
 ## Vulnerabilities & Concerns
 List specific security weaknesses identified:
-- Each vulnerability with technical details
-- Potential exploitation methods
+- Each CVE with exploitation potential
+- Missing security headers and their impact
+- Exposed admin panels and sensitive paths
+- Directory listing vulnerabilities
 - Severity rating for each issue
 
 ## Recommended Actions
@@ -190,6 +246,18 @@ Be thorough and detailed. This report will be presented to executive leadership.
         emails = phases.get('osint', {}).get('emails', [])
         technologies = phases.get('technologies', [])
         
+        # Get new security check data
+        headers_info = scan_results.get('security_headers', {})
+        headers_grade = headers_info.get('grade', 'Unknown')
+        missing_headers = headers_info.get('headers_missing', [])
+        
+        ssl_info = scan_results.get('ssl_info', {})
+        cves = scan_results.get('known_cves', [])
+        admin_panels = scan_results.get('admin_panels', {}).get('found', [])
+        dir_listing = scan_results.get('directory_listing', {})
+        robots_data = scan_results.get('robots_txt', {})
+        score_factors = scan_results.get('score_factors', [])
+        
         # Collect all ports
         all_ports = []
         for host in hosts:
@@ -221,106 +289,150 @@ This comprehensive threat intelligence assessment of **{target}** has identified
 
 ## Key Findings
 
-### Infrastructure Discovery
-- **Subdomain Enumeration:** Successfully identified {len(subdomains)} unique subdomains through certificate transparency logs and DNS analysis. Each subdomain represents a potential entry point that requires security assessment.
-- **Active Host Identification:** {len(hosts)} hosts are actively responding to network probes, indicating live infrastructure that may be accessible to potential attackers.
-- **Network Exposure:** {'Ports ' + str(unique_ports) + ' are exposed to the internet' if unique_ports else 'No open ports were detected during the scan window'}
+### Security Headers Analysis
+- **Grade: {headers_grade}** - """
 
-### Port Analysis
-"""
+        if headers_grade in ['A', 'B']:
+            report += f"Good security header implementation with {100 - len(missing_headers) * 14}% coverage.\n"
+        elif headers_grade == 'C':
+            report += "Moderate security header coverage. Some important headers are missing.\n"
+        else:
+            report += "Poor security header implementation. Critical headers are missing.\n"
+        
+        if missing_headers:
+            report += f"- **Missing Headers:** {', '.join([h['name'] for h in missing_headers[:5]])}\n"
+            report += "- Missing headers expose the site to XSS, clickjacking, and MIME-sniffing attacks.\n"
+
+        report += "\n### SSL/TLS Configuration\n"
+        if ssl_info.get('valid'):
+            report += f"- **Certificate:** Valid, issued by {ssl_info.get('issuer', 'Unknown')}\n"
+            report += f"- **TLS Version:** {ssl_info.get('tls_version', 'Unknown')}\n"
+            days = ssl_info.get('days_until_expiry', 0)
+            if days < 30:
+                report += f"- ⚠️ **Warning:** Certificate expires in {days} days - renewal required\n"
+            else:
+                report += f"- Certificate valid for {days} days\n"
+        else:
+            report += "- ⚠️ **Warning:** SSL certificate could not be verified or is not present\n"
+
+        # Known CVEs section
+        report += "\n### Known Vulnerabilities (CVEs)\n"
+        if cves:
+            for cve in cves[:5]:
+                report += f"- **{cve.get('cve')}** ({cve.get('severity')}) - {cve.get('technology')}: {cve.get('description')}\n"
+        else:
+            report += "- No known CVEs detected in the identified technology stack.\n"
+
+        # Admin Panels section
+        report += "\n### Admin Panel Exposure\n"
+        accessible_panels = [p for p in admin_panels if p.get('accessible')]
+        protected_panels = [p for p in admin_panels if not p.get('accessible')]
+        
+        if accessible_panels:
+            report += f"- ⚠️ **Critical:** {len(accessible_panels)} admin panel(s) accessible without authentication:\n"
+            for panel in accessible_panels[:3]:
+                report += f"  - `{panel['path']}` (Status: {panel.get('status')})\n"
+        if protected_panels:
+            report += f"- {len(protected_panels)} admin panel(s) detected but protected (requires authentication)\n"
+        if not admin_panels:
+            report += "- No common admin panels were detected.\n"
+
+        # Directory Listing
+        report += "\n### Directory Listing\n"
+        if dir_listing.get('vulnerable'):
+            exposed = dir_listing.get('exposed_dirs', [])
+            report += f"- ⚠️ **Vulnerability:** Directory listing is enabled on {len(exposed)} directories:\n"
+            for d in exposed[:3]:
+                report += f"  - `{d}`\n"
+            report += "- This exposes file structure and potentially sensitive files to attackers.\n"
+        else:
+            report += "- No directory listing vulnerabilities detected.\n"
+
+        # Robots.txt
+        report += "\n### Robots.txt Analysis\n"
+        if robots_data.get('found'):
+            sensitive = robots_data.get('sensitive_paths', [])
+            if sensitive:
+                report += f"- **Sensitive Paths Found:** {len(sensitive)} paths may expose administrative or sensitive areas:\n"
+                for p in sensitive[:3]:
+                    report += f"  - `{p['path']}` (keyword: {p.get('keyword')})\n"
+            else:
+                report += "- robots.txt found but no sensitive paths detected.\n"
+        else:
+            report += "- No robots.txt file found.\n"
+
+        report += "\n### Infrastructure Discovery\n"
+        report += f"- **Subdomain Enumeration:** Successfully identified {len(subdomains)} unique subdomains through certificate transparency logs.\n"
+        report += f"- **Active Host Identification:** {len(hosts)} hosts are actively responding to network probes.\n"
+        report += f"- **Network Exposure:** {'Ports ' + str(unique_ports) + ' are exposed' if unique_ports else 'No open ports were detected'}\n"
+
+        report += "\n### Port Analysis\n"
         
         # Detailed port analysis
         if unique_ports:
             for port in unique_ports:
                 if port == 21:
-                    report += "- **Port 21 (FTP):** File Transfer Protocol detected. FTP transmits credentials in plaintext and should be replaced with SFTP or FTPS for secure file transfers.\n"
+                    report += "- **Port 21 (FTP):** FTP transmits credentials in plaintext. Replace with SFTP or FTPS.\n"
                 elif port == 22:
-                    report += "- **Port 22 (SSH):** Secure Shell access is available. Ensure key-based authentication is enforced and password authentication is disabled.\n"
+                    report += "- **Port 22 (SSH):** Ensure key-based authentication is enforced.\n"
                 elif port == 23:
-                    report += "- **Port 23 (Telnet):** Telnet detected - this is a critical finding as Telnet transmits all data unencrypted. Immediate replacement with SSH is recommended.\n"
-                elif port == 25:
-                    report += "- **Port 25 (SMTP):** Mail server detected. Verify SPF, DKIM, and DMARC records are properly configured to prevent email spoofing.\n"
+                    report += "- **Port 23 (Telnet):** Critical - Telnet transmits all data unencrypted. Replace with SSH.\n"
                 elif port == 80:
-                    report += "- **Port 80 (HTTP):** Unencrypted web traffic is accepted. Ensure all HTTP traffic is redirected to HTTPS with proper HSTS headers.\n"
+                    report += "- **Port 80 (HTTP):** Ensure HTTP redirects to HTTPS with HSTS.\n"
                 elif port == 443:
-                    report += "- **Port 443 (HTTPS):** Secure web services are running. Verify TLS configuration meets current best practices (TLS 1.2+ only).\n"
+                    report += "- **Port 443 (HTTPS):** Secure web services running.\n"
                 elif port == 3306:
-                    report += "- **Port 3306 (MySQL):** Database port is exposed. This is a high-risk finding - databases should never be directly accessible from the internet.\n"
+                    report += "- **Port 3306 (MySQL):** Database exposed - high risk finding.\n"
                 elif port == 3389:
-                    report += "- **Port 3389 (RDP):** Remote Desktop Protocol is exposed. This is frequently targeted by attackers and should be protected with VPN access.\n"
-                else:
-                    report += f"- **Port {port}:** Service detected on non-standard port. Investigate the purpose and security implications of this service.\n"
+                    report += "- **Port 3389 (RDP):** Remote Desktop exposed - protect with VPN.\n"
         else:
-            report += "- No open ports were detected during this scan. This may indicate strong firewall rules or the scan was blocked.\n"
+            report += "- No open ports were detected during this scan.\n"
 
-        report += """
-### Email & OSINT Analysis
-"""
+        report += "\n### Email & OSINT Analysis\n"
         if emails:
-            report += f"- **Exposed Email Addresses:** {len(emails)} corporate email addresses were discovered through OSINT techniques ({', '.join(emails[:5])}{'...' if len(emails) > 5 else ''})\n"
-            report += "- **Social Engineering Risk:** These emails can be used for targeted phishing campaigns, credential stuffing attacks, or business email compromise (BEC) schemes.\n"
-            report += "- **Recommendation:** Implement email security awareness training and consider using email aliases for public-facing communications.\n"
+            report += f"- **Exposed Emails:** {len(emails)} corporate email addresses discovered ({', '.join(emails[:3])}{'...' if len(emails) > 3 else ''})\n"
+            report += "- These can be used for targeted phishing and social engineering attacks.\n"
         else:
-            report += "- No email addresses were discovered during OSINT reconnaissance. This indicates good privacy practices.\n"
-
-        report += """
-### Technology Stack Analysis
-"""
-        if technologies:
-            tech_names = [t['name'] for t in technologies]
-            report += f"- **Detected Technologies:** {', '.join(tech_names[:8])}\n"
-            for tech in technologies[:5]:
-                if 'version' in tech.get('name', '').lower() or tech.get('version'):
-                    report += f"- Consider checking **{tech['name']}** for known CVEs and security advisories.\n"
-        else:
-            report += "- Technology fingerprinting did not yield specific results. The target may be using techniques to obscure their technology stack.\n"
+            report += "- No email addresses were discovered - good privacy practices.\n"
 
         report += f"""
 ## Risk Assessment
 
 {risk_color} **{risk_level} Risk** (Score: {score}/100)
 
-### Attack Surface Analysis
-- **Entry Points:** {len(subdomains) + len(hosts)} potential entry points identified (subdomains + active hosts)
-- **Service Exposure:** {len(unique_ports)} unique services accessible from the internet
-- **Information Leakage:** {len(emails)} email addresses discoverable through public sources
-
-### Threat Vector Assessment
+### Score Breakdown
 """
-        
-        if 21 in unique_ports or 23 in unique_ports:
-            report += "- ⚠️ **Critical:** Legacy protocols (FTP/Telnet) detected that transmit data in cleartext\n"
-        if 3306 in unique_ports or 5432 in unique_ports or 1433 in unique_ports:
-            report += "- ⚠️ **Critical:** Database ports exposed to the internet - immediate remediation required\n"
-        if 3389 in unique_ports:
-            report += "- ⚠️ **High:** RDP exposure creates significant risk of brute-force and ransomware attacks\n"
-        if emails:
-            report += f"- ⚠️ **Medium:** {len(emails)} exposed emails increase phishing and social engineering risk\n"
-        if len(subdomains) > 10:
-            report += f"- ⚠️ **Medium:** Large subdomain footprint ({len(subdomains)}) increases attack surface management complexity\n"
+        for factor in score_factors[:10]:
+            report += f"- {factor}\n"
 
-        report += """
+        report += f"""
+### Attack Surface Analysis
+- **Entry Points:** {len(subdomains) + len(hosts)} potential entry points identified
+- **Service Exposure:** {len(unique_ports)} unique services accessible from the internet
+- **Information Leakage:** {len(emails)} email addresses discoverable
+- **Known Vulnerabilities:** {len(cves)} CVEs affecting detected technologies
+
 ## Recommended Actions
 
 ### Immediate Priority (24-48 hours)
-1. **Audit Exposed Services:** Review all detected open ports and disable any unnecessary services immediately
-2. **Email Protection:** Notify security team about exposed email addresses and increase phishing awareness
-3. **Credential Review:** Rotate any credentials that may have been exposed through detected services
+1. **Security Headers:** Implement HSTS, CSP, X-Frame-Options on all web properties
+2. **CVE Remediation:** Address all critical and high severity CVEs immediately
+3. **Admin Panels:** Restrict access to detected admin panels with authentication/IP filtering
 
 ### Short-Term Improvements (1-2 weeks)
-1. **Vulnerability Scanning:** Conduct authenticated vulnerability scans on all detected hosts
-2. **Access Controls:** Implement IP whitelisting for administrative services (SSH, RDP, databases)
-3. **Security Headers:** Deploy comprehensive security headers (HSTS, CSP, X-Frame-Options) on all web properties
+1. **SSL Configuration:** Ensure TLS 1.2+ only, renew expiring certificates
+2. **Disable Directory Listing:** Configure web server to prevent directory browsing
+3. **Review robots.txt:** Remove sensitive paths or password-protect those areas
 
 ### Medium-Term Hardening (1-3 months)
-1. **Network Segmentation:** Isolate sensitive services behind VPN or zero-trust architecture
-2. **Monitoring Implementation:** Deploy SIEM/log aggregation for all identified assets
-3. **Penetration Testing:** Engage third-party security firm for comprehensive assessment
+1. **Network Segmentation:** Isolate sensitive services behind VPN
+2. **Vulnerability Scanning:** Conduct authenticated scans on all hosts
+3. **Penetration Testing:** Engage third-party for comprehensive assessment
 
 ### Long-Term Strategy
-1. **Continuous Monitoring:** Implement ongoing attack surface monitoring and threat intelligence
-2. **Security Program:** Develop formal vulnerability management and incident response programs
-3. **Regular Assessments:** Schedule quarterly security assessments and annual penetration tests
+1. **Continuous Monitoring:** Implement attack surface monitoring
+2. **Security Program:** Develop formal vulnerability management
+3. **Regular Assessments:** Schedule quarterly security audits
 
 ---
 *Report generated by Aegis Recon | Author: VexSpitta*
@@ -328,7 +440,6 @@ This comprehensive threat intelligence assessment of **{target}** has identified
         
         return {
             "report": report,
-            "model": "aegis-fallback-v1",
+            "model": "aegis-fallback-v2",
             "generated_at": datetime.now(timezone.utc).isoformat()
         }
-

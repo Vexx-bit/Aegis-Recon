@@ -677,23 +677,23 @@ class AegisScanner:
         # Exposed email addresses (-5 each, max -15)
         email_count = len(phases['osint']['emails'])
         if email_count > 0:
-            deduction = min(email_count * 5, 15)
+            deduction = min(email_count * 3, 10)
             score -= deduction
             findings.append(f'-{deduction}: {email_count} exposed emails')
         
-        # Risky open ports
+        # Risky open ports (reduced penalties)
         risky_ports = {
-            21: (15, 'FTP - cleartext credentials'),
-            22: (5, 'SSH - potential brute-force target'),
-            23: (20, 'Telnet - critical, cleartext protocol'),
-            25: (5, 'SMTP - potential spam relay'),
-            3306: (15, 'MySQL - database exposed'),
-            5432: (15, 'PostgreSQL - database exposed'),
-            1433: (15, 'MSSQL - database exposed'),
-            3389: (15, 'RDP - ransomware target'),
-            5900: (10, 'VNC - screen sharing exposed'),
-            6379: (15, 'Redis - database exposed'),
-            27017: (15, 'MongoDB - database exposed'),
+            21: (8, 'FTP - cleartext credentials'),
+            22: (3, 'SSH - potential brute-force target'),
+            23: (15, 'Telnet - critical, cleartext protocol'),
+            25: (3, 'SMTP - potential spam relay'),
+            3306: (10, 'MySQL - database exposed'),
+            5432: (10, 'PostgreSQL - database exposed'),
+            1433: (10, 'MSSQL - database exposed'),
+            3389: (10, 'RDP - ransomware target'),
+            5900: (8, 'VNC - screen sharing exposed'),
+            6379: (10, 'Redis - database exposed'),
+            27017: (10, 'MongoDB - database exposed'),
         }
         
         for host in phases['hosts']:
@@ -703,33 +703,35 @@ class AegisScanner:
                     score -= deduction
                     findings.append(f'-{deduction}: Port {port} ({reason})')
         
-        # HTTP without HTTPS (-10)
+        # HTTP without HTTPS (-8)
         has_http = any(80 in host.get('ports', []) for host in phases['hosts'])
         has_https = any(443 in host.get('ports', []) for host in phases['hosts'])
         if has_http and not has_https:
-            score -= 10
-            findings.append('-10: HTTP only, no HTTPS detected')
+            score -= 8
+            findings.append('-8: HTTP only, no HTTPS detected')
         
-        # Outdated software detection
+        # Outdated software detection (reduced to -5)
         outdated_indicators = ['openssl/1.0', 'php/5.', 'php/7.0', 'php/7.1', 'php/7.2', 
                                'apache/2.2', 'nginx/1.1', 'jquery/1.', 'jquery/2.']
+        outdated_found = 0
         for tech in phases.get('technologies', []):
             tech_name = tech.get('name', '').lower()
             for indicator in outdated_indicators:
-                if indicator in tech_name:
-                    score -= 10
-                    findings.append(f'-10: Outdated software ({tech.get("name")})')
+                if indicator in tech_name and outdated_found < 2:  # Max 2 outdated penalties
+                    score -= 5
+                    outdated_found += 1
+                    findings.append(f'-5: Outdated software ({tech.get("name")})')
                     break
         
         # Large subdomain footprint increases attack surface
         if subdomain_count > 10:
-            deduction = min((subdomain_count - 10) * 2, 15)
+            deduction = min((subdomain_count - 10) * 1, 10)
             score -= deduction
             findings.append(f'-{deduction}: Large attack surface ({subdomain_count} subdomains)')
         
         # ========== NEW SECURITY CHECK FACTORS ==========
         
-        # Security Headers Grade
+        # Security Headers Grade (reduced penalties)
         headers_grade = self.results.get('security_headers', {}).get('grade', 'F')
         if headers_grade == 'A':
             score += 10
@@ -737,19 +739,21 @@ class AegisScanner:
         elif headers_grade == 'B':
             score += 5
             findings.append('+5: Good security headers (Grade B)')
+        elif headers_grade == 'C':
+            pass  # Neutral
         elif headers_grade in ['D', 'F']:
-            score -= 10
-            findings.append(f'-10: Poor security headers (Grade {headers_grade})')
+            score -= 5
+            findings.append(f'-5: Poor security headers (Grade {headers_grade})')
         
         # SSL Certificate
         ssl_info = self.results.get('ssl_info', {})
         if ssl_info.get('valid'):
             if ssl_info.get('is_expired'):
-                score -= 20
-                findings.append('-20: SSL certificate is expired')
+                score -= 15
+                findings.append('-15: SSL certificate is expired')
             elif ssl_info.get('days_until_expiry', 999) < 30:
-                score -= 5
-                findings.append('-5: SSL certificate expiring soon')
+                score -= 3
+                findings.append('-3: SSL certificate expiring soon')
             else:
                 score += 5
                 findings.append('+5: Valid SSL certificate')
@@ -757,50 +761,61 @@ class AegisScanner:
             # Check TLS version
             tls_version = ssl_info.get('tls_version', '')
             if 'TLSv1.0' in tls_version or 'TLSv1.1' in tls_version:
-                score -= 10
-                findings.append(f'-10: Outdated TLS version ({tls_version})')
+                score -= 5
+                findings.append(f'-5: Outdated TLS version ({tls_version})')
         
-        # Admin Panels Exposed
+        # Admin Panels Exposed (reduced)
         admin_panels = self.results.get('admin_panels', {}).get('found', [])
         accessible_panels = [p for p in admin_panels if p.get('accessible')]
         if accessible_panels:
-            deduction = min(len(accessible_panels) * 10, 20)
+            deduction = min(len(accessible_panels) * 5, 10)
             score -= deduction
             findings.append(f'-{deduction}: {len(accessible_panels)} admin panel(s) accessible')
         
-        # Directory Listing
+        # Directory Listing (reduced)
         if self.results.get('directory_listing', {}).get('vulnerable'):
             exposed_count = len(self.results['directory_listing'].get('exposed_dirs', []))
-            score -= 15
-            findings.append(f'-15: Directory listing enabled ({exposed_count} dirs exposed)')
+            score -= 8
+            findings.append(f'-8: Directory listing enabled ({exposed_count} dirs exposed)')
         
-        # Known CVEs
+        # Known CVEs (reduced and deduplicated)
         cves = self.results.get('known_cves', [])
-        critical_cves = [c for c in cves if c.get('severity') == 'Critical']
-        high_cves = [c for c in cves if c.get('severity') == 'High']
+        # Deduplicate by CVE ID
+        seen_cves = set()
+        unique_cves = []
+        for c in cves:
+            if c.get('cve') not in seen_cves:
+                seen_cves.add(c.get('cve'))
+                unique_cves.append(c)
+        
+        critical_cves = [c for c in unique_cves if c.get('severity') == 'Critical']
+        high_cves = [c for c in unique_cves if c.get('severity') == 'High']
         
         if critical_cves:
-            deduction = min(len(critical_cves) * 15, 30)
+            deduction = min(len(critical_cves) * 8, 15)
             score -= deduction
             findings.append(f'-{deduction}: {len(critical_cves)} critical CVE(s) detected')
         if high_cves:
-            deduction = min(len(high_cves) * 10, 20)
+            deduction = min(len(high_cves) * 5, 10)
             score -= deduction
             findings.append(f'-{deduction}: {len(high_cves)} high severity CVE(s) detected')
         
-        # Robots.txt sensitive paths
+        # Robots.txt sensitive paths (minor penalty)
         sensitive_paths = self.results.get('robots_txt', {}).get('sensitive_paths', [])
-        if len(sensitive_paths) > 3:
-            score -= 5
-            findings.append('-5: Many sensitive paths in robots.txt')
+        if len(sensitive_paths) > 5:
+            score -= 3
+            findings.append('-3: Many sensitive paths in robots.txt')
+        
+        # ========== MINIMUM SCORE ==========
+        # Don't go below 15 - that's critical exposure
+        score = max(15, score)
         
         # ========== UNCERTAINTY PENALTY ==========
-        # If we detected very little, we can't give a high score
+        # If we detected very little, cap at 75
         tech_count = len(phases.get('technologies', []))
         host_count = len(phases.get('hosts', []))
         
         if tech_count == 0 and host_count <= 1:
-            # Limited visibility - reduce score as we can't verify security
             score = min(score, 75)
             findings.append('Cap at 75: Limited reconnaissance data')
         
