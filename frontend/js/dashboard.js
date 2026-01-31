@@ -256,6 +256,11 @@ function displayResults(results) {
             if ([21, 22, 23, 3389, 5900].includes(port)) threatCount++;
         });
     });
+    
+    // Add CVE count to threats
+    const cveCount = (results.known_cves || []).length;
+    threatCount += cveCount;
+    
     animateNumber('statVulns', threatCount);
     
     // Display security score
@@ -270,6 +275,14 @@ function displayResults(results) {
     
     // Display OSINT
     displayOSINT(phases.osint || {});
+    
+    // Display new security check results
+    displaySecurityHeaders(results.security_headers);
+    displaySSLInfo(results.ssl_info);
+    displayAdminPanels(results.admin_panels);
+    displayKnownCVEs(results.known_cves);
+    displayRobotsTxt(results.robots_txt);
+    displayDirectoryListing(results.directory_listing);
     
     // Enable export button
     const exportBtn = document.getElementById('exportJsonBtn');
@@ -534,6 +547,247 @@ function displayOSINT(osint) {
                 <span class="small">${email}</span>
             </li>
         `;
+    });
+    
+    html += '</ul>';
+    container.innerHTML = html;
+}
+
+/**
+ * Display Security Headers Analysis
+ */
+function displaySecurityHeaders(headersData) {
+    const container = document.getElementById('securityHeadersContent');
+    if (!container) return;
+    
+    if (!headersData || headersData.error) {
+        container.innerHTML = '<p class="text-muted small">Unable to check security headers</p>';
+        return;
+    }
+    
+    const gradeColors = {
+        'A': '#10b981', 'B': '#22c55e', 'C': '#f59e0b', 'D': '#f97316', 'F': '#ef4444'
+    };
+    
+    let html = `
+        <div class="d-flex align-items-center mb-3">
+            <div class="me-3" style="
+                width: 50px; height: 50px; 
+                border-radius: 50%; 
+                background: ${gradeColors[headersData.grade] || '#6b7280'};
+                display: flex; align-items: center; justify-content: center;
+            ">
+                <span style="color: white; font-weight: bold; font-size: 1.5rem;">${headersData.grade}</span>
+            </div>
+            <div>
+                <strong style="color: #e2e8f0;">Security Headers Grade</strong><br>
+                <small class="text-muted">${headersData.score_percentage || 0}% of recommended headers present</small>
+            </div>
+        </div>
+    `;
+    
+    if (headersData.headers_missing && headersData.headers_missing.length > 0) {
+        html += '<div class="mb-2"><small class="text-danger"><i class="bi bi-exclamation-triangle"></i> Missing Headers:</small></div>';
+        html += '<div class="d-flex flex-wrap gap-1 mb-2">';
+        headersData.headers_missing.forEach(h => {
+            html += `<span class="badge bg-danger bg-opacity-25 text-danger" title="${h.description}">${h.name}</span>`;
+        });
+        html += '</div>';
+    }
+    
+    if (headersData.headers_found && headersData.headers_found.length > 0) {
+        html += '<div class="mb-2"><small class="text-success"><i class="bi bi-check-circle"></i> Found Headers:</small></div>';
+        html += '<div class="d-flex flex-wrap gap-1">';
+        headersData.headers_found.forEach(h => {
+            html += `<span class="badge bg-success bg-opacity-25 text-success">${h.name}</span>`;
+        });
+        html += '</div>';
+    }
+    
+    container.innerHTML = html;
+}
+
+/**
+ * Display SSL/TLS Certificate Info
+ */
+function displaySSLInfo(sslData) {
+    const container = document.getElementById('sslInfoContent');
+    if (!container) return;
+    
+    if (!sslData || !sslData.valid) {
+        container.innerHTML = `
+            <div class="alert alert-warning py-2 mb-0">
+                <i class="bi bi-exclamation-triangle"></i>
+                <small>SSL certificate could not be verified</small>
+            </div>
+        `;
+        return;
+    }
+    
+    const isExpiringSoon = sslData.days_until_expiry < 30;
+    const statusColor = sslData.is_expired ? 'danger' : (isExpiringSoon ? 'warning' : 'success');
+    
+    let html = `
+        <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-shield-lock-fill text-${statusColor} me-2" style="font-size: 1.5rem;"></i>
+            <div>
+                <strong class="text-${statusColor}">
+                    ${sslData.is_expired ? 'Certificate Expired!' : (isExpiringSoon ? 'Expiring Soon' : 'Valid Certificate')}
+                </strong>
+            </div>
+        </div>
+        <table class="table table-sm table-borderless mb-0" style="font-size: 0.8rem;">
+            <tr><td class="text-muted">Issuer:</td><td class="text-light">${sslData.issuer}</td></tr>
+            <tr><td class="text-muted">TLS Version:</td><td class="text-light">${sslData.tls_version || 'Unknown'}</td></tr>
+            <tr><td class="text-muted">Expires:</td><td class="text-${statusColor}">
+                ${sslData.days_until_expiry !== undefined ? sslData.days_until_expiry + ' days' : 'Unknown'}
+            </td></tr>
+        </table>
+    `;
+    
+    container.innerHTML = html;
+}
+
+/**
+ * Display Admin Panels Detection
+ */
+function displayAdminPanels(panelsData) {
+    const container = document.getElementById('adminPanelsContent');
+    if (!container) return;
+    
+    if (!panelsData || !panelsData.found || panelsData.found.length === 0) {
+        container.innerHTML = `
+            <div class="text-success small">
+                <i class="bi bi-check-circle"></i> No exposed admin panels detected
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<ul class="list-unstyled mb-0">';
+    panelsData.found.forEach(panel => {
+        const statusBadge = panel.accessible 
+            ? '<span class="badge bg-danger">Accessible</span>'
+            : '<span class="badge bg-warning text-dark">Protected</span>';
+        html += `
+            <li class="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary">
+                <code class="text-info">${panel.path}</code>
+                ${statusBadge}
+            </li>
+        `;
+    });
+    html += '</ul>';
+    
+    container.innerHTML = html;
+}
+
+/**
+ * Display Known CVEs
+ */
+function displayKnownCVEs(cvesData) {
+    const container = document.getElementById('knownCVEsContent');
+    if (!container) return;
+    
+    if (!cvesData || cvesData.length === 0) {
+        container.innerHTML = `
+            <div class="text-success small">
+                <i class="bi bi-check-circle"></i> No known CVEs detected in detected technologies
+            </div>
+        `;
+        return;
+    }
+    
+    const severityColors = {
+        'Critical': 'danger',
+        'High': 'warning',
+        'Medium': 'info',
+        'Low': 'secondary'
+    };
+    
+    let html = '';
+    cvesData.forEach(cve => {
+        const color = severityColors[cve.severity] || 'secondary';
+        html += `
+            <div class="border border-${color} rounded p-2 mb-2" style="background: rgba(255,255,255,0.02);">
+                <div class="d-flex align-items-center mb-1">
+                    <span class="badge bg-${color} me-2">${cve.severity}</span>
+                    <code class="text-light">${cve.cve}</code>
+                </div>
+                <small class="text-muted">${cve.technology}</small><br>
+                <small class="text-light">${cve.description}</small>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+/**
+ * Display Robots.txt Analysis
+ */
+function displayRobotsTxt(robotsData) {
+    const container = document.getElementById('robotsTxtContent');
+    if (!container) return;
+    
+    if (!robotsData || !robotsData.found) {
+        container.innerHTML = '<p class="text-muted small">No robots.txt found</p>';
+        return;
+    }
+    
+    let html = '';
+    
+    if (robotsData.sensitive_paths && robotsData.sensitive_paths.length > 0) {
+        html += '<div class="mb-2"><small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Sensitive Paths Found:</small></div>';
+        html += '<ul class="list-unstyled mb-2">';
+        robotsData.sensitive_paths.forEach(p => {
+            html += `<li><code class="text-warning">${p.path}</code> <small class="text-muted">(${p.keyword})</small></li>`;
+        });
+        html += '</ul>';
+    }
+    
+    if (robotsData.all_disallowed && robotsData.all_disallowed.length > 0) {
+        html += `<details><summary class="small text-muted cursor-pointer">View ${robotsData.all_disallowed.length} disallowed paths</summary>`;
+        html += '<ul class="list-unstyled mt-1">';
+        robotsData.all_disallowed.slice(0, 10).forEach(path => {
+            html += `<li><code class="text-muted small">${path}</code></li>`;
+        });
+        html += '</ul></details>';
+    }
+    
+    if (!html) {
+        html = '<p class="text-muted small">robots.txt found but no sensitive paths detected</p>';
+    }
+    
+    container.innerHTML = html;
+}
+
+/**
+ * Display Directory Listing Check
+ */
+function displayDirectoryListing(dirData) {
+    const container = document.getElementById('directoryListingContent');
+    if (!container) return;
+    
+    if (!dirData || !dirData.vulnerable) {
+        container.innerHTML = `
+            <div class="text-success small">
+                <i class="bi bi-check-circle"></i> No directory listing vulnerabilities detected
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="alert alert-danger py-2 mb-2">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <strong>Directory Listing Enabled!</strong>
+        </div>
+        <small class="text-muted">Exposed directories:</small>
+        <ul class="list-unstyled mb-0">
+    `;
+    
+    dirData.exposed_dirs.forEach(dir => {
+        html += `<li><code class="text-danger">${dir}</code></li>`;
     });
     
     html += '</ul>';

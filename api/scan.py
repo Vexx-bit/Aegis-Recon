@@ -115,6 +115,17 @@ class AegisScanner:
         except:
             return None, {}
     
+    def _fetch_with_headers(self, url, timeout=10):
+        """Make HTTP request and return response with full headers"""
+        try:
+            req = Request(url, headers=self.headers)
+            with urlopen(req, timeout=timeout) as response:
+                return response.read().decode('utf-8'), dict(response.headers), response.status
+        except HTTPError as e:
+            return None, dict(e.headers) if e.headers else {}, e.code
+        except:
+            return None, {}, 0
+    
     def run(self):
         """Execute all scan phases"""
         self.scan_subdomains()
@@ -122,6 +133,15 @@ class AegisScanner:
         self.fingerprint_tech()
         self.scan_osint()
         self.enrich_hosts()
+        
+        # New security checks
+        self.check_security_headers()
+        self.check_ssl_certificate()
+        self.check_robots_txt()
+        self.check_admin_panels()
+        self.check_directory_listing()
+        self.check_cms_cves()
+        
         self.calculate_score()
         return self.results
     
@@ -268,6 +288,354 @@ class AegisScanner:
             except:
                 pass
     
+    def check_security_headers(self):
+        """Check for important security headers"""
+        self.results['security_headers'] = {
+            'headers_found': [],
+            'headers_missing': [],
+            'grade': 'F',
+            'details': []
+        }
+        
+        try:
+            url = f"https://{self.target}"
+            _, headers, status = self._fetch_with_headers(url, timeout=10)
+            
+            if not headers:
+                # Try HTTP if HTTPS fails
+                url = f"http://{self.target}"
+                _, headers, status = self._fetch_with_headers(url, timeout=10)
+            
+            if not headers:
+                return
+            
+            # Important security headers to check
+            security_headers = {
+                'Strict-Transport-Security': {
+                    'importance': 'critical',
+                    'description': 'Enforces HTTPS connections'
+                },
+                'Content-Security-Policy': {
+                    'importance': 'high',
+                    'description': 'Prevents XSS and injection attacks'
+                },
+                'X-Frame-Options': {
+                    'importance': 'medium',
+                    'description': 'Prevents clickjacking attacks'
+                },
+                'X-Content-Type-Options': {
+                    'importance': 'medium',
+                    'description': 'Prevents MIME type sniffing'
+                },
+                'X-XSS-Protection': {
+                    'importance': 'low',
+                    'description': 'Legacy XSS filter (deprecated but still useful)'
+                },
+                'Referrer-Policy': {
+                    'importance': 'medium',
+                    'description': 'Controls referrer information leakage'
+                },
+                'Permissions-Policy': {
+                    'importance': 'medium',
+                    'description': 'Controls browser feature permissions'
+                }
+            }
+            
+            found = []
+            missing = []
+            score = 0
+            max_score = 0
+            
+            importance_weights = {'critical': 30, 'high': 20, 'medium': 15, 'low': 10}
+            
+            for header, info in security_headers.items():
+                weight = importance_weights[info['importance']]
+                max_score += weight
+                
+                # Check case-insensitively
+                header_value = None
+                for h, v in headers.items():
+                    if h.lower() == header.lower():
+                        header_value = v
+                        break
+                
+                if header_value:
+                    found.append({
+                        'name': header,
+                        'value': header_value[:100],  # Truncate long values
+                        'importance': info['importance']
+                    })
+                    score += weight
+                else:
+                    missing.append({
+                        'name': header,
+                        'description': info['description'],
+                        'importance': info['importance']
+                    })
+            
+            # Calculate grade
+            percentage = (score / max_score) * 100 if max_score > 0 else 0
+            if percentage >= 90:
+                grade = 'A'
+            elif percentage >= 75:
+                grade = 'B'
+            elif percentage >= 50:
+                grade = 'C'
+            elif percentage >= 25:
+                grade = 'D'
+            else:
+                grade = 'F'
+            
+            self.results['security_headers'] = {
+                'headers_found': found,
+                'headers_missing': missing,
+                'grade': grade,
+                'score_percentage': round(percentage)
+            }
+            
+        except Exception as e:
+            self.results['security_headers']['error'] = str(e)
+    
+    def check_ssl_certificate(self):
+        """Check SSL/TLS certificate information"""
+        self.results['ssl_info'] = {
+            'valid': False,
+            'details': {}
+        }
+        
+        try:
+            import ssl
+            import socket
+            
+            context = ssl.create_default_context()
+            
+            with socket.create_connection((self.target, 443), timeout=10) as sock:
+                with context.wrap_socket(sock, server_hostname=self.target) as ssock:
+                    cert = ssock.getpeercert()
+                    
+                    # Parse certificate info
+                    subject = dict(x[0] for x in cert.get('subject', []))
+                    issuer = dict(x[0] for x in cert.get('issuer', []))
+                    
+                    # Parse dates
+                    not_before = cert.get('notBefore', '')
+                    not_after = cert.get('notAfter', '')
+                    
+                    # Check TLS version
+                    tls_version = ssock.version()
+                    
+                    self.results['ssl_info'] = {
+                        'valid': True,
+                        'subject': subject.get('commonName', self.target),
+                        'issuer': issuer.get('organizationName', 'Unknown'),
+                        'not_before': not_before,
+                        'not_after': not_after,
+                        'tls_version': tls_version,
+                        'is_expired': False  # Will be updated below
+                    }
+                    
+                    # Check if expired
+                    try:
+                        from datetime import datetime
+                        exp_date = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z')
+                        self.results['ssl_info']['is_expired'] = exp_date < datetime.now()
+                        self.results['ssl_info']['days_until_expiry'] = (exp_date - datetime.now()).days
+                    except:
+                        pass
+                    
+        except Exception as e:
+            self.results['ssl_info']['error'] = str(e)
+    
+    def check_robots_txt(self):
+        """Parse robots.txt for sensitive paths"""
+        self.results['robots_txt'] = {
+            'found': False,
+            'sensitive_paths': [],
+            'all_disallowed': []
+        }
+        
+        try:
+            url = f"https://{self.target}/robots.txt"
+            content, _, status = self._fetch_with_headers(url, timeout=5)
+            
+            if not content:
+                url = f"http://{self.target}/robots.txt"
+                content, _, status = self._fetch_with_headers(url, timeout=5)
+            
+            if content and status == 200:
+                self.results['robots_txt']['found'] = True
+                
+                # Parse disallowed paths
+                disallowed = []
+                sensitive_keywords = ['admin', 'backup', 'config', 'database', 'db', 
+                                      'private', 'secret', 'test', 'dev', 'staging',
+                                      'old', 'temp', 'tmp', 'log', 'logs', 'sql',
+                                      'dump', 'api', 'internal', 'manage', 'panel']
+                
+                sensitive_found = []
+                
+                for line in content.split('\n'):
+                    line = line.strip().lower()
+                    if line.startswith('disallow:'):
+                        path = line.replace('disallow:', '').strip()
+                        if path and path != '/':
+                            disallowed.append(path)
+                            
+                            # Check if path contains sensitive keywords
+                            for keyword in sensitive_keywords:
+                                if keyword in path:
+                                    sensitive_found.append({
+                                        'path': path,
+                                        'keyword': keyword
+                                    })
+                                    break
+                
+                self.results['robots_txt']['all_disallowed'] = disallowed[:20]
+                self.results['robots_txt']['sensitive_paths'] = sensitive_found[:10]
+                
+        except:
+            pass
+    
+    def check_admin_panels(self):
+        """Check for exposed admin panels"""
+        self.results['admin_panels'] = {
+            'found': [],
+            'checked': 0
+        }
+        
+        common_admin_paths = [
+            '/admin', '/administrator', '/admin.php', '/wp-admin', '/wp-login.php',
+            '/login', '/signin', '/auth', '/panel', '/dashboard',
+            '/manage', '/management', '/backend', '/cpanel', '/phpmyadmin',
+            '/adminer', '/webadmin', '/.git', '/.env', '/config.php'
+        ]
+        
+        base_urls = [f"https://{self.target}", f"http://{self.target}"]
+        found_panels = []
+        checked = 0
+        
+        try:
+            for base in base_urls:
+                for path in common_admin_paths[:15]:  # Limit to avoid timeout
+                    checked += 1
+                    try:
+                        url = base + path
+                        _, headers, status = self._fetch_with_headers(url, timeout=3)
+                        
+                        # Check if accessible (200, 301, 302, 401, 403 indicate existence)
+                        if status in [200, 301, 302, 401, 403]:
+                            found_panels.append({
+                                'path': path,
+                                'status': status,
+                                'accessible': status == 200
+                            })
+                    except:
+                        pass
+                
+                if found_panels:
+                    break  # Found some, no need to try HTTP
+            
+            self.results['admin_panels'] = {
+                'found': found_panels,
+                'checked': checked
+            }
+            
+        except:
+            pass
+    
+    def check_directory_listing(self):
+        """Check for directory listing vulnerabilities"""
+        self.results['directory_listing'] = {
+            'vulnerable': False,
+            'exposed_dirs': []
+        }
+        
+        test_dirs = ['/images/', '/assets/', '/uploads/', '/files/', 
+                     '/css/', '/js/', '/media/', '/static/']
+        
+        try:
+            for dir_path in test_dirs:
+                for protocol in ['https', 'http']:
+                    try:
+                        url = f"{protocol}://{self.target}{dir_path}"
+                        content, _, status = self._fetch_with_headers(url, timeout=3)
+                        
+                        if status == 200 and content:
+                            # Check for directory listing indicators
+                            listing_indicators = [
+                                'Index of', 'Directory listing', '<title>Index of',
+                                'Parent Directory', '[DIR]', '[To Parent Directory]'
+                            ]
+                            
+                            if any(indicator in content for indicator in listing_indicators):
+                                self.results['directory_listing']['vulnerable'] = True
+                                self.results['directory_listing']['exposed_dirs'].append(dir_path)
+                                break
+                    except:
+                        pass
+                        
+        except:
+            pass
+    
+    def check_cms_cves(self):
+        """Check for known CVEs in detected CMS versions"""
+        cves = []
+        
+        tech_names = [t.get('name', '').lower() for t in self.results['phases'].get('technologies', [])]
+        
+        # Known vulnerable versions (simplified - in production, use a CVE database)
+        vulnerable_versions = {
+            'joomla': [
+                {'version': '3.', 'cve': 'CVE-2023-23752', 'severity': 'Critical', 'desc': 'Unauthorized access to webservice endpoints'},
+                {'version': '4.0', 'cve': 'CVE-2023-23752', 'severity': 'Critical', 'desc': 'Information disclosure vulnerability'}
+            ],
+            'wordpress': [
+                {'version': '5.', 'cve': 'CVE-2022-21661', 'severity': 'High', 'desc': 'SQL injection in WP_Query'},
+                {'version': '4.', 'cve': 'Multiple', 'severity': 'Critical', 'desc': 'Multiple unpatched vulnerabilities'}
+            ],
+            'drupal': [
+                {'version': '7.', 'cve': 'CVE-2018-7600', 'severity': 'Critical', 'desc': 'Drupalgeddon2 RCE'},
+                {'version': '8.', 'cve': 'CVE-2019-6340', 'severity': 'High', 'desc': 'Remote code execution'}
+            ],
+            'php/5.': [
+                {'version': '5.', 'cve': 'Multiple', 'severity': 'Critical', 'desc': 'End of life - no security updates'}
+            ],
+            'php/7.0': [
+                {'version': '7.0', 'cve': 'Multiple', 'severity': 'High', 'desc': 'End of life since 2019'}
+            ],
+            'php/7.1': [
+                {'version': '7.1', 'cve': 'Multiple', 'severity': 'High', 'desc': 'End of life since 2019'}
+            ],
+            'php/7.2': [
+                {'version': '7.2', 'cve': 'Multiple', 'severity': 'Medium', 'desc': 'End of life since 2020'}
+            ],
+            'openssl/1.0': [
+                {'version': '1.0', 'cve': 'CVE-2020-1971', 'severity': 'High', 'desc': 'Null pointer dereference DoS'}
+            ],
+            'apache/2.2': [
+                {'version': '2.2', 'cve': 'Multiple', 'severity': 'High', 'desc': 'End of life - multiple vulnerabilities'}
+            ],
+            'jquery/1.': [
+                {'version': '1.', 'cve': 'CVE-2020-11022', 'severity': 'Medium', 'desc': 'XSS vulnerability in jQuery < 3.5.0'}
+            ],
+            'jquery/2.': [
+                {'version': '2.', 'cve': 'CVE-2020-11022', 'severity': 'Medium', 'desc': 'XSS vulnerability in jQuery < 3.5.0'}
+            ]
+        }
+        
+        for tech_name in tech_names:
+            for vuln_key, vuln_list in vulnerable_versions.items():
+                if vuln_key in tech_name:
+                    for vuln in vuln_list:
+                        cves.append({
+                            'technology': tech_name,
+                            'cve': vuln['cve'],
+                            'severity': vuln['severity'],
+                            'description': vuln['desc']
+                        })
+        
+        self.results['known_cves'] = cves
+
     def calculate_score(self):
         """Calculate a comprehensive security score based on reconnaissance findings
         
@@ -359,6 +727,73 @@ class AegisScanner:
             score -= deduction
             findings.append(f'-{deduction}: Large attack surface ({subdomain_count} subdomains)')
         
+        # ========== NEW SECURITY CHECK FACTORS ==========
+        
+        # Security Headers Grade
+        headers_grade = self.results.get('security_headers', {}).get('grade', 'F')
+        if headers_grade == 'A':
+            score += 10
+            findings.append('+10: Excellent security headers (Grade A)')
+        elif headers_grade == 'B':
+            score += 5
+            findings.append('+5: Good security headers (Grade B)')
+        elif headers_grade in ['D', 'F']:
+            score -= 10
+            findings.append(f'-10: Poor security headers (Grade {headers_grade})')
+        
+        # SSL Certificate
+        ssl_info = self.results.get('ssl_info', {})
+        if ssl_info.get('valid'):
+            if ssl_info.get('is_expired'):
+                score -= 20
+                findings.append('-20: SSL certificate is expired')
+            elif ssl_info.get('days_until_expiry', 999) < 30:
+                score -= 5
+                findings.append('-5: SSL certificate expiring soon')
+            else:
+                score += 5
+                findings.append('+5: Valid SSL certificate')
+            
+            # Check TLS version
+            tls_version = ssl_info.get('tls_version', '')
+            if 'TLSv1.0' in tls_version or 'TLSv1.1' in tls_version:
+                score -= 10
+                findings.append(f'-10: Outdated TLS version ({tls_version})')
+        
+        # Admin Panels Exposed
+        admin_panels = self.results.get('admin_panels', {}).get('found', [])
+        accessible_panels = [p for p in admin_panels if p.get('accessible')]
+        if accessible_panels:
+            deduction = min(len(accessible_panels) * 10, 20)
+            score -= deduction
+            findings.append(f'-{deduction}: {len(accessible_panels)} admin panel(s) accessible')
+        
+        # Directory Listing
+        if self.results.get('directory_listing', {}).get('vulnerable'):
+            exposed_count = len(self.results['directory_listing'].get('exposed_dirs', []))
+            score -= 15
+            findings.append(f'-15: Directory listing enabled ({exposed_count} dirs exposed)')
+        
+        # Known CVEs
+        cves = self.results.get('known_cves', [])
+        critical_cves = [c for c in cves if c.get('severity') == 'Critical']
+        high_cves = [c for c in cves if c.get('severity') == 'High']
+        
+        if critical_cves:
+            deduction = min(len(critical_cves) * 15, 30)
+            score -= deduction
+            findings.append(f'-{deduction}: {len(critical_cves)} critical CVE(s) detected')
+        if high_cves:
+            deduction = min(len(high_cves) * 10, 20)
+            score -= deduction
+            findings.append(f'-{deduction}: {len(high_cves)} high severity CVE(s) detected')
+        
+        # Robots.txt sensitive paths
+        sensitive_paths = self.results.get('robots_txt', {}).get('sensitive_paths', [])
+        if len(sensitive_paths) > 3:
+            score -= 5
+            findings.append('-5: Many sensitive paths in robots.txt')
+        
         # ========== UNCERTAINTY PENALTY ==========
         # If we detected very little, we can't give a high score
         tech_count = len(phases.get('technologies', []))
@@ -379,4 +814,3 @@ class AegisScanner:
             "It does not detect application-level vulnerabilities (SQLi, XSS, etc.). "
             "A comprehensive security assessment requires active vulnerability scanning."
         )
-
