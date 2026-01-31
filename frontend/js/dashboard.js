@@ -724,54 +724,54 @@ function downloadReportPDF() {
         .replace(/\n\n/g, '<br><br>')
         .replace(/\n/g, '<br>');
     
-    // Build PDF HTML content (using tables instead of flex for html2canvas compatibility)
+    // Build PDF HTML content - A4 at 72 DPI = 595px width
     const pdfHTML = `
-        <div style="font-family: Arial, Helvetica, sans-serif; padding: 40px; font-size: 13px; line-height: 1.6; color: #1e293b; background: white; width: 800px;">
+        <div style="font-family: Arial, Helvetica, sans-serif; padding: 30px; font-size: 12px; line-height: 1.5; color: #1e293b; background: white; width: 595px; box-sizing: border-box;">
             
             <!-- Header -->
-            <table style="width: 100%; border-collapse: collapse; border-bottom: 3px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px;">
+            <table style="width: 100%; border-collapse: collapse; border-bottom: 3px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px;">
                 <tr>
                     <td style="vertical-align: bottom;">
-                        <div style="font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -1px;">AEGIS RECON</div>
-                        <div style="font-size: 12px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 2px;">Threat Intelligence Report</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #0f172a;">AEGIS RECON</div>
+                        <div style="font-size: 10px; color: #64748b; margin-top: 3px; text-transform: uppercase; letter-spacing: 1px;">Threat Intelligence Report</div>
                     </td>
                     <td style="text-align: right; vertical-align: bottom;">
-                        <div style="font-size: 11px; color: #64748b;">CONFIDENTIAL</div>
-                        <div style="font-size: 13px; font-weight: 600; color: #0f172a;">${timestamp}</div>
+                        <div style="font-size: 9px; color: #64748b;">CONFIDENTIAL</div>
+                        <div style="font-size: 11px; font-weight: 600; color: #0f172a;">${timestamp}</div>
                     </td>
                 </tr>
             </table>
             
             <!-- Summary Box -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
-                        <td style="width: 40%; padding-right: 20px; border-right: 1px solid #cbd5e1; vertical-align: top;">
-                            <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Target Domain</div>
-                            <div style="font-size: 16px; font-weight: 700; color: #0f172a;">${target}</div>
+                        <td style="width: 40%; padding-right: 15px; border-right: 1px solid #cbd5e1; vertical-align: top;">
+                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Target Domain</div>
+                            <div style="font-size: 13px; font-weight: 700; color: #0f172a;">${target}</div>
                         </td>
-                        <td style="width: 30%; padding: 0 20px; text-align: center; border-right: 1px solid #cbd5e1; vertical-align: top;">
-                            <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Security Score</div>
-                            <div style="font-size: 32px; font-weight: 800; color: ${riskColor};">${score}</div>
+                        <td style="width: 30%; padding: 0 15px; text-align: center; border-right: 1px solid #cbd5e1; vertical-align: top;">
+                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Security Score</div>
+                            <div style="font-size: 26px; font-weight: 800; color: ${riskColor};">${score}</div>
                         </td>
-                        <td style="width: 30%; padding-left: 20px; text-align: right; vertical-align: top;">
-                            <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Risk Level</div>
-                            <span style="display: inline-block; background: ${riskColor}; color: white; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700;">${riskLevel}</span>
+                        <td style="width: 30%; padding-left: 15px; text-align: right; vertical-align: top;">
+                            <div style="font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Risk Level</div>
+                            <span style="display: inline-block; background: ${riskColor}; color: white; padding: 4px 12px; border-radius: 15px; font-size: 10px; font-weight: 700;">${riskLevel}</span>
                         </td>
                     </tr>
                 </table>
             </div>
             
             <!-- Report Content -->
-            <div style="margin-bottom: 40px;">
+            <div style="margin-bottom: 30px;">
                 ${formattedContent}
             </div>
             
             <!-- Footer -->
-            <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 40px;">
+            <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 30px;">
                 <tr>
-                    <td style="font-size: 10px; color: #94a3b8;">Generated by Aegis Recon AI • v${AUTHOR.version}</td>
-                    <td style="font-size: 10px; color: #94a3b8; text-align: right;">© ${new Date().getFullYear()} ${AUTHOR.name}. All Rights Reserved.</td>
+                    <td style="font-size: 9px; color: #94a3b8; padding-top: 10px;">Generated by Aegis Recon AI • v${AUTHOR.version}</td>
+                    <td style="font-size: 9px; color: #94a3b8; text-align: right; padding-top: 10px;">© ${new Date().getFullYear()} ${AUTHOR.name}</td>
                 </tr>
             </table>
         </div>
@@ -779,19 +779,20 @@ function downloadReportPDF() {
     
     console.log('[AEGIS PDF] Generating PDF...');
     
-    // PDF generation options
+    // PDF generation options - no margin since we handle it with padding
     const options = {
-        margin: 10,
+        margin: 0,
         filename: `Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
             scale: 2,
             useCORS: true, 
             logging: false,
-            backgroundColor: '#ffffff'
+            backgroundColor: '#ffffff',
+            windowWidth: 595
         },
         jsPDF: { 
-            unit: 'mm', 
+            unit: 'pt', 
             format: 'a4', 
             orientation: 'portrait' 
         }
