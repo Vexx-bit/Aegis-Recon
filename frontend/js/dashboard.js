@@ -259,8 +259,8 @@ function displayResults(results) {
     animateNumber('statVulns', threatCount);
     
     // Display security score
-    const score = results.security_score || 100;
-    displaySecurityScore(score);
+    const score = results.security_score || 70;
+    displaySecurityScore(score, results);
     
     // Display hosts
     displayHosts(phases.hosts || []);
@@ -305,7 +305,7 @@ function animateNumber(elementId, target) {
 /**
  * Display security score with animated progress
  */
-function displaySecurityScore(score) {
+function displaySecurityScore(score, results = {}) {
     const section = document.getElementById('securityScoreSection');
     const scoreValue = document.getElementById('securityScoreValue');
     const progressBar = document.getElementById('scoreProgressBar');
@@ -329,15 +329,45 @@ function displaySecurityScore(score) {
     }, 20);
     
     // Update color based on score
+    let scoreLabel = '';
     if (score >= 80) {
         progressBar.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+        scoreLabel = 'Low Exposure';
     } else if (score >= 60) {
         progressBar.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+        scoreLabel = 'Moderate Exposure';
     } else if (score >= 40) {
         progressBar.style.background = 'linear-gradient(90deg, #f97316, #fb923c)';
+        scoreLabel = 'High Exposure';
     } else {
         progressBar.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+        scoreLabel = 'Critical Exposure';
     }
+    
+    // Add disclaimer below score
+    const disclaimer = results.score_disclaimer || 
+        'This score reflects visible exposure from passive reconnaissance only.';
+    
+    // Check if disclaimer element exists, if not create it
+    let disclaimerEl = section.querySelector('.score-disclaimer');
+    if (!disclaimerEl) {
+        disclaimerEl = document.createElement('div');
+        disclaimerEl.className = 'score-disclaimer';
+        disclaimerEl.style.cssText = `
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(148, 163, 184, 0.1);
+            border-radius: 6px;
+            border-left: 3px solid #64748b;
+        `;
+        section.appendChild(disclaimerEl);
+    }
+    disclaimerEl.innerHTML = `
+        <strong style="color: #64748b;">⚠️ ${scoreLabel}</strong><br>
+        <span style="font-size: 10px;">${disclaimer}</span>
+    `;
 }
 
 /**
