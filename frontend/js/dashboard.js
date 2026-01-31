@@ -699,94 +699,70 @@ function downloadReportPDF() {
     else if (score >= 40) { riskLevel = 'HIGH RISK'; riskColor = '#f97316'; }
     else { riskLevel = 'CRITICAL RISK'; riskColor = '#ef4444'; }
     
-    // Create PDF container (hidden)
-    // 794px is the standard pixel width for A4 at 96 DPI. Setting this explicitly helps 
-    // align the HTML layout with the PDF page, reducing weird scaling artifacts.
-    // Create PDF container (hidden)
-    // Width set to 190mm (Approx 718px) which is the safe printable area of A4 (210mm) minus margins (10mm each side)
+    // Create a simple, reliable PDF container
     const pdfContainer = document.createElement('div');
     pdfContainer.id = 'pdf-export-container';
-    pdfContainer.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 190mm; background: white;';
+    pdfContainer.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 800px; background: white;';
     
-    // Process the report content into logical blocks to prevent weird page breaks
-    const formattedBody = formatReportForPDF(reportContent);
+    // Simple markdown to HTML conversion
+    const formattedContent = reportContent
+        .replace(/^## (.*$)/gim, '<h2 style="font-size: 16px; font-weight: 700; color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; margin: 25px 0 15px 0;">$1</h2>')
+        .replace(/^### (.*$)/gim, '<h3 style="font-size: 14px; font-weight: 600; color: #334155; margin: 20px 0 10px 0;">$1</h3>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>')
+        .replace(/^- (.*$)/gim, '<div style="margin: 8px 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6; font-weight: bold;">▸</span>$1</div>')
+        .replace(/`(.*?)`/g, '<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #1e293b;">$1</code>')
+        .replace(/🟢/g, '<span style="color:#10b981">●</span>')
+        .replace(/🟡/g, '<span style="color:#f59e0b">●</span>')
+        .replace(/🟠/g, '<span style="color:#f97316">●</span>')
+        .replace(/🔴/g, '<span style="color:#ef4444">●</span>')
+        .replace(/⚠️/g, '<span style="color:#f59e0b">⚠</span>')
+        .replace(/\n\n/g, '<br><br>')
+        .replace(/\n/g, '<br>');
     
     pdfContainer.innerHTML = `
-        <style>
-            /* Base Typography */
-            .pdf-container { font-family: 'Helvetica', 'Arial', sans-serif; color: #1e293b; font-size: 10pt; line-height: 1.4; }
+        <div style="font-family: Arial, Helvetica, sans-serif; padding: 40px; font-size: 13px; line-height: 1.6; color: #1e293b;">
             
-            /* Header Compact */
-            .header-strip { background: #3b82f6; height: 6px; width: 100%; }
-            .header-main { padding: 15px 0 10px 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; }
-            .title { font-size: 16pt; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: -0.5px; }
-            .subtitle { font-size: 9pt; color: #64748b; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
-            .meta { font-size: 9pt; color: #64748b; text-align: right; }
+            <!-- Header -->
+            <div style="border-bottom: 3px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div>
+                        <div style="font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -1px;">AEGIS RECON</div>
+                        <div style="font-size: 12px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 2px;">Threat Intelligence Report</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 11px; color: #64748b;">CONFIDENTIAL</div>
+                        <div style="font-size: 13px; font-weight: 600; color: #0f172a;">${timestamp}</div>
+                    </div>
+                </div>
+            </div>
             
-            /* Compact Summary Grid */
-            .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 15px; margin-bottom: 25px; display: flex; align-items: center; }
-            .sum-col { flex: 1; border-right: 1px solid #cbd5e1; padding: 0 15px; }
-            .sum-col:first-child { padding-left: 0; }
-            .sum-col:last-child { border: none; padding-right: 0; text-align: right; }
-            .label { font-size: 7pt; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 2px; }
-            .value { font-size: 11pt; font-weight: 700; color: #0f172a; }
-            .score-val { font-size: 18pt; font-weight: 800; color: ${riskColor}; line-height: 1; }
-            
-            /* Section Blocks - The Magic Layout Fix */
-            .report-section { margin-bottom: 20px; page-break-inside: avoid; break-inside: avoid; }
-            h2 { font-size: 13pt; font-weight: 700; color: #1e293b; border-bottom: 2px solid #cbd5e1; padding-bottom: 4px; margin: 0 0 10px 0; }
-            h3 { font-size: 11pt; font-weight: 600; color: #475569; margin: 10px 0 5px 0; }
-            p { margin: 0 0 8px 0; text-align: justify; }
-            
-            /* Lists */
-            .list-item { margin-bottom: 6px; padding-left: 12px; position: relative; }
-            .bullet { position: absolute; left: 0; top: 0; color: #3b82f6; font-weight: bold; }
-            
-            /* Code */
-            .code-snippet { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 9pt; color: #0f172a; border: 1px solid #e2e8f0; }
-            
-            /* Footer */
-            .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 7pt; color: #94a3b8; display: flex; justify-content: space-between; }
-        </style>
-
-        <div class="pdf-container">
-            <div class="header-strip"></div>
-            
-            <div class="header-main">
-                <table style="width: 100%;">
+            <!-- Summary Box -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                <table style="width: 100%; border-collapse: collapse;">
                     <tr>
-                        <td>
-                            <div class="title">Aegis Recon</div>
-                            <div class="subtitle">Threat Intelligence Assessment</div>
+                        <td style="width: 40%; padding-right: 20px; border-right: 1px solid #cbd5e1;">
+                            <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Target Domain</div>
+                            <div style="font-size: 16px; font-weight: 700; color: #0f172a;">${target}</div>
                         </td>
-                        <td class="meta">
-                            <div><strong>CONFIDENTIAL</strong></div>
-                            <div>${timestamp}</div>
+                        <td style="width: 30%; padding: 0 20px; text-align: center; border-right: 1px solid #cbd5e1;">
+                            <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Security Score</div>
+                            <div style="font-size: 32px; font-weight: 800; color: ${riskColor};">${score}</div>
+                        </td>
+                        <td style="width: 30%; padding-left: 20px; text-align: right;">
+                            <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Risk Level</div>
+                            <div style="display: inline-block; background: ${riskColor}; color: white; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700;">${riskLevel}</div>
                         </td>
                     </tr>
                 </table>
             </div>
             
-            <div class="summary-box">
-                <div class="sum-col">
-                    <div class="label">Target System</div>
-                    <div class="value">${target}</div>
-                </div>
-                <div class="sum-col" style="text-align: center;">
-                    <div class="label">Security Score</div>
-                    <div class="score-val">${score}</div>
-                </div>
-                <div class="sum-col">
-                    <div class="label">Risk Assessment</div>
-                    <div style="display: inline-block; background: ${riskColor}; color: white; padding: 3px 10px; border-radius: 12px; font-size: 8pt; font-weight: 700;">${riskLevel}</div>
-                </div>
+            <!-- Report Content -->
+            <div style="margin-bottom: 40px;">
+                ${formattedContent}
             </div>
             
-            <div class="report-content">
-                ${formattedBody}
-            </div>
-            
-            <div class="footer">
+            <!-- Footer -->
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 40px; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between;">
                 <div>Generated by Aegis Recon AI • v${AUTHOR.version}</div>
                 <div>© ${new Date().getFullYear()} ${AUTHOR.name}. All Rights Reserved.</div>
             </div>
@@ -795,77 +771,38 @@ function downloadReportPDF() {
     
     document.body.appendChild(pdfContainer);
     
+    // PDF generation options
     const options = {
-        margin: [10, 10, 10, 10], // 10mm margins
+        margin: 10,
         filename: `Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`,
-        image: { type: 'jpeg', quality: 1.0 },
-        html2canvas: { scale: 3, useCORS: true, logging: false, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] }
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+            scale: 2,
+            useCORS: true, 
+            logging: false,
+            backgroundColor: '#ffffff'
+        },
+        jsPDF: { 
+            unit: 'mm', 
+            format: 'a4', 
+            orientation: 'portrait' 
+        }
     };
     
-    html2pdf().set(options).from(pdfContainer.firstElementChild).save().then(() => {
-        pdfContainer.remove();
-        showAlert('✓ Professional Report Downloaded', 'success');
-    }).catch(err => {
-        pdfContainer.remove();
-        console.error(err);
-        showAlert('Report generation failed', 'danger');
-    });
-}
-
-/**
- * Intelligent Markdown Formatter
- * Wraps logical sections in blocks to prevent bad page breaks
- */
-function formatReportForPDF(markdown) {
-    if (!markdown) return '';
-    
-    // 1. Split by H2 headers (Analysis sections) to create logical blocks
-    let parts = markdown.split(/^## /gm);
-    
-    // The first part is usually intro text (Executive Summary in most AI responses) 
-    // or empty if the text starts with ##
-    let html = '';
-    
-    if (parts[0].trim()) {
-        html += `<div class="report-section">${formatBlock(parts[0])}</div>`;
-    }
-    
-    // Process sections
-    for (let i = 1; i < parts.length; i++) {
-        let section = parts[i];
-        // extract title (first line)
-        let firstLineEnd = section.indexOf('\n');
-        let title = section.substring(0, firstLineEnd > -1 ? firstLineEnd : section.length).trim();
-        let content = firstLineEnd > -1 ? section.substring(firstLineEnd) : '';
-        
-        html += `<div class="report-section">
-            <h2>${title}</h2>
-            ${formatBlock(content)}
-        </div>`;
-    }
-    
-    return html;
-}
-
-/**
- * Helper to format content inside a block
- */
-function formatBlock(text) {
-    return text
-        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/^- (.*$)/gim, '<div class="list-item"><span class="bullet">▸</span>$1</div>')
-        .replace(/`(.*?)`/g, '<span class="code-snippet">$1</span>')
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/\n/g, '<br>')
-        // Clean up risk emojis for cleaner PDF look
-        .replace(/🟢/g, '<span style="color:#10b981">●</span>')
-        .replace(/🟡/g, '<span style="color:#f59e0b">●</span>')
-        .replace(/🟠/g, '<span style="color:#f97316">●</span>')
-        .replace(/🔴/g, '<span style="color:#ef4444">●</span>')
-        .replace(/⚠️/g, '<span style="color:#f59e0b">▲</span>');
+    // Generate PDF from the container content
+    html2pdf()
+        .set(options)
+        .from(pdfContainer.firstChild)
+        .save()
+        .then(() => {
+            pdfContainer.remove();
+            showAlert('✓ Report Downloaded', 'success');
+        })
+        .catch(err => {
+            pdfContainer.remove();
+            console.error('[AEGIS] PDF Error:', err);
+            showAlert('PDF generation failed', 'danger');
+        });
 }
 // ============================================================================
 // UTILITIES
