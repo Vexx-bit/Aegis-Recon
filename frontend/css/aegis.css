@@ -184,7 +184,7 @@ code, pre { font-family: var(--ff-mono); }
   align-items: center;
 }
 .topbar__logo {
-  height: 28px;
+  height: 40px;
   width: auto;
 }
 .topbar__right {
@@ -194,10 +194,10 @@ code, pre { font-family: var(--ff-mono); }
 }
 @media (min-width:600px) {
   .topbar { padding: 1rem 1.5rem; }
-  .topbar__logo { height: 34px; }
+  .topbar__logo { height: 48px; }
 }
 @media (min-width:1200px) {
-  .topbar__logo { height: 38px; }
+  .topbar__logo { height: 54px; }
 }
 
 /* ═══════════════════════════════════════════════
@@ -412,6 +412,18 @@ code, pre { font-family: var(--ff-mono); }
   transition: opacity var(--t-fast);
 }
 .powered-by:hover .footer-logo { opacity: 1; }
+
+.footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+.footer-icon {
+  height: 16px;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+}
 
 /* ═══════════════════════════════════════════════
    PULSE BADGE (Scanning indicator)
