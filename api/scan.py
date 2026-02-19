@@ -134,13 +134,20 @@ class AegisScanner:
         self.scan_osint()
         self.enrich_hosts()
         
-        # New security checks
+        # Security checks
         self.check_security_headers()
         self.check_ssl_certificate()
         self.check_robots_txt()
         self.check_admin_panels()
         self.check_directory_listing()
         self.check_cms_cves()
+        
+        # NEW OSINT modules
+        self.enumerate_dns_records()
+        self.lookup_whois()
+        self.check_cookie_security()
+        self.check_http_methods()
+        self.check_cors_policy()
         
         self.calculate_score()
         return self.results
@@ -636,6 +643,261 @@ class AegisScanner:
         
         self.results['known_cves'] = cves
 
+    # ==================================================================
+    # NEW OSINT MODULES
+    # ==================================================================
+
+    def enumerate_dns_records(self):
+        """Enumerate DNS records using Google & Cloudflare DNS-over-HTTPS"""
+        records = []
+        record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA']
+        
+        for rtype in record_types:
+            try:
+                url = f"https://dns.google/resolve?name={self.target}&type={rtype}"
+                content, _ = self._fetch(url, timeout=5)
+                if content:
+                    data = json.loads(content)
+                    for answer in data.get('Answer', []):
+                        value = answer.get('data', '').strip('"')
+                        if value:
+                            records.append({
+                                'type': rtype,
+                                'name': answer.get('name', self.target).rstrip('.'),
+                                'value': value,
+                                'ttl': answer.get('TTL', 0)
+                            })
+            except:
+                pass
+        
+        self.results['dns_records'] = records
+
+    def lookup_whois(self):
+        """Lightweight WHOIS lookup via RDAP (public, no API key needed)"""
+        self.results['whois_info'] = {}
+        
+        try:
+            # Use RDAP (Registration Data Access Protocol) - the modern WHOIS
+            url = f"https://rdap.org/domain/{self.target}"
+            content, _ = self._fetch(url, timeout=8)
+            
+            if content:
+                data = json.loads(content)
+                
+                whois = {}
+                
+                # Registrar
+                entities = data.get('entities', [])
+                for entity in entities:
+                    roles = entity.get('roles', [])
+                    if 'registrar' in roles:
+                        vcard = entity.get('vcardArray', [None, []])
+                        if len(vcard) > 1:
+                            for item in vcard[1]:
+                                if item[0] == 'fn':
+                                    whois['registrar'] = item[3]
+                                    break
+                        # Fallback to publicIds
+                        if 'registrar' not in whois:
+                            pub_ids = entity.get('publicIds', [])
+                            if pub_ids:
+                                whois['registrar'] = pub_ids[0].get('identifier', '')
+                
+                # Dates
+                events = data.get('events', [])
+                for event in events:
+                    action = event.get('eventAction', '')
+                    date_val = event.get('eventDate', '')
+                    if date_val:
+                        # Format date nicely
+                        try:
+                            from datetime import datetime
+                            dt = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
+                            date_str = dt.strftime('%Y-%m-%d')
+                        except:
+                            date_str = date_val[:10]
+                        
+                        if action == 'registration':
+                            whois['creation_date'] = date_str
+                        elif action == 'expiration':
+                            whois['expiry_date'] = date_str
+                        elif action == 'last changed':
+                            whois['updated_date'] = date_str
+                
+                # Name servers
+                nameservers = data.get('nameservers', [])
+                if nameservers:
+                    ns_list = [ns.get('ldhName', '') for ns in nameservers if ns.get('ldhName')]
+                    if ns_list:
+                        whois['name_servers'] = ', '.join(ns_list[:4])
+                
+                # Status / DNSSEC
+                dnssec = data.get('secureDNS', {})
+                if dnssec.get('delegationSigned'):
+                    whois['dnssec'] = 'Signed'
+                else:
+                    whois['dnssec'] = 'Unsigned'
+                
+                # Status flags
+                status = data.get('status', [])
+                if status:
+                    whois['status'] = ', '.join(status[:3])
+                
+                self.results['whois_info'] = whois
+                
+        except Exception as e:
+            self.results['whois_info'] = {'error': str(e)}
+
+    def check_cookie_security(self):
+        """Analyze cookie security attributes"""
+        self.results['cookie_security'] = {'cookies': []}
+        
+        try:
+            url = f"https://{self.target}"
+            _, headers, status = self._fetch_with_headers(url, timeout=8)
+            
+            if not headers:
+                url = f"http://{self.target}"
+                _, headers, status = self._fetch_with_headers(url, timeout=8)
+            
+            if not headers:
+                return
+            
+            # Collect all Set-Cookie headers
+            cookies = []
+            for header_name, header_value in headers.items():
+                if header_name.lower() == 'set-cookie':
+                    # Parse cookie
+                    parts = header_value.split(';')
+                    if parts:
+                        cookie_name = parts[0].split('=')[0].strip()
+                        flags = header_value.lower()
+                        
+                        cookies.append({
+                            'name': cookie_name,
+                            'secure': 'secure' in flags,
+                            'httponly': 'httponly' in flags,
+                            'samesite': self._extract_samesite(flags),
+                            'raw': header_value[:150]
+                        })
+            
+            self.results['cookie_security'] = {'cookies': cookies}
+            
+        except:
+            pass
+    
+    def _extract_samesite(self, cookie_str):
+        """Extract SameSite value from cookie string"""
+        lower = cookie_str.lower()
+        if 'samesite=strict' in lower:
+            return 'Strict'
+        elif 'samesite=lax' in lower:
+            return 'Lax'
+        elif 'samesite=none' in lower:
+            return 'None'
+        return None
+
+    def check_http_methods(self):
+        """Test which HTTP methods the server allows"""
+        self.results['http_methods'] = {'methods': [], 'risky_methods': []}
+        
+        try:
+            # First try OPTIONS request
+            url = f"https://{self.target}"
+            
+            try:
+                req = Request(url, headers=self.headers, method='OPTIONS')
+                with urlopen(req, timeout=5) as response:
+                    allow = response.headers.get('Allow', '')
+                    if allow:
+                        methods = [m.strip().upper() for m in allow.split(',')]
+                        risky = [m for m in methods if m in ['PUT', 'DELETE', 'TRACE', 'CONNECT']]
+                        self.results['http_methods'] = {
+                            'methods': methods,
+                            'risky_methods': risky
+                        }
+                        return
+            except:
+                pass
+            
+            # Fallback: test common methods individually
+            test_methods = ['GET', 'POST', 'HEAD', 'OPTIONS', 'PUT', 'DELETE', 'TRACE', 'PATCH']
+            allowed = []
+            risky = []
+            
+            for method in test_methods:
+                try:
+                    req = Request(url, headers=self.headers, method=method)
+                    with urlopen(req, timeout=3) as response:
+                        if response.status < 500:
+                            allowed.append(method)
+                            if method in ['PUT', 'DELETE', 'TRACE', 'CONNECT']:
+                                risky.append(method)
+                except HTTPError as e:
+                    # 405 Method Not Allowed = method exists but blocked
+                    # 400, 401, 403 = method potentially available
+                    if e.code in [400, 401, 403]:
+                        allowed.append(method)
+                        if method in ['PUT', 'DELETE', 'TRACE', 'CONNECT']:
+                            risky.append(method)
+                except:
+                    pass
+            
+            self.results['http_methods'] = {
+                'methods': allowed if allowed else ['GET'],
+                'risky_methods': risky
+            }
+            
+        except:
+            pass
+
+    def check_cors_policy(self):
+        """Check for CORS misconfigurations"""
+        self.results['cors_check'] = {
+            'cors_enabled': False,
+            'wildcard_origin': False,
+            'reflects_origin': False
+        }
+        
+        try:
+            url = f"https://{self.target}"
+            
+            # Test 1: Check for wildcard origin
+            test_headers = dict(self.headers)
+            test_headers['Origin'] = 'https://evil-attacker.com'
+            
+            try:
+                req = Request(url, headers=test_headers)
+                with urlopen(req, timeout=5) as response:
+                    acao = response.headers.get('Access-Control-Allow-Origin', '')
+                    
+                    if acao == '*':
+                        self.results['cors_check'] = {
+                            'cors_enabled': True,
+                            'wildcard_origin': True,
+                            'reflects_origin': False,
+                            'allow_origin': '*'
+                        }
+                    elif acao == 'https://evil-attacker.com':
+                        self.results['cors_check'] = {
+                            'cors_enabled': True,
+                            'wildcard_origin': False,
+                            'reflects_origin': True,
+                            'allow_origin': acao
+                        }
+                    elif acao:
+                        self.results['cors_check'] = {
+                            'cors_enabled': True,
+                            'wildcard_origin': False,
+                            'reflects_origin': False,
+                            'allow_origin': acao
+                        }
+            except:
+                pass
+                
+        except:
+            pass
+
     def calculate_score(self):
         """Calculate a comprehensive security score based on reconnaissance findings
         
@@ -805,6 +1067,63 @@ class AegisScanner:
         if len(sensitive_paths) > 5:
             score -= 3
             findings.append('-3: Many sensitive paths in robots.txt')
+        
+        # ========== NEW MODULE FACTORS ==========
+        
+        # Cookie security
+        cookies = self.results.get('cookie_security', {}).get('cookies', [])
+        insecure_cookies = [c for c in cookies if not c.get('secure') or not c.get('httponly')]
+        if insecure_cookies:
+            deduction = min(len(insecure_cookies) * 2, 6)
+            score -= deduction
+            findings.append(f'-{deduction}: {len(insecure_cookies)} cookie(s) missing security flags')
+        
+        # HTTP risky methods
+        risky_methods = self.results.get('http_methods', {}).get('risky_methods', [])
+        if risky_methods:
+            score -= 4
+            findings.append(f'-4: Risky HTTP methods enabled ({", ".join(risky_methods)})')
+        
+        # CORS misconfiguration
+        cors = self.results.get('cors_check', {})
+        if cors.get('wildcard_origin'):
+            score -= 6
+            findings.append('-6: Wildcard CORS policy (Access-Control-Allow-Origin: *)')
+        elif cors.get('reflects_origin'):
+            score -= 8
+            findings.append('-8: CORS reflects arbitrary origins (critical misconfiguration)')
+        
+        # WHOIS: domain expiry warning
+        whois = self.results.get('whois_info', {})
+        if whois.get('expiry_date'):
+            try:
+                from datetime import datetime
+                exp = datetime.strptime(whois['expiry_date'], '%Y-%m-%d')
+                days_left = (exp - datetime.now()).days
+                if days_left < 30:
+                    score -= 3
+                    findings.append(f'-3: Domain expires in {days_left} days')
+            except:
+                pass
+        
+        # DNSSEC bonus
+        if whois.get('dnssec') == 'Signed':
+            score += 3
+            findings.append('+3: DNSSEC enabled')
+        
+        # DNS: SPF/DMARC check
+        dns_records = self.results.get('dns_records', [])
+        has_spf = any('spf' in r.get('value', '').lower() for r in dns_records if r.get('type') == 'TXT')
+        has_dmarc = any('dmarc' in r.get('value', '').lower() for r in dns_records if r.get('type') == 'TXT')
+        if has_spf:
+            score += 3
+            findings.append('+3: SPF record present')
+        if has_dmarc:
+            score += 3
+            findings.append('+3: DMARC record present')
+        if not has_spf and not has_dmarc:
+            score -= 4
+            findings.append('-4: No SPF/DMARC email security records')
         
         # ========== MINIMUM SCORE ==========
         # Don't go below 15 - that's critical exposure

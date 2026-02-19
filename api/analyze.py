@@ -126,6 +126,20 @@ class handler(BaseHTTPRequestHandler):
             
             score_factors = scan_results.get('score_factors', [])
             
+            # New OSINT data
+            dns_records = scan_results.get('dns_records', [])
+            dns_summary = [f"{r['type']}: {r['value']}" for r in dns_records[:15]]
+            
+            whois_info = scan_results.get('whois_info', {})
+            
+            cookie_data = scan_results.get('cookie_security', {}).get('cookies', [])
+            cookie_summary = [f"{c['name']} (Secure:{c.get('secure')}, HttpOnly:{c.get('httponly')}, SameSite:{c.get('samesite')})" for c in cookie_data]
+            
+            http_methods = scan_results.get('http_methods', {})
+            risky_methods = http_methods.get('risky_methods', [])
+            
+            cors_data = scan_results.get('cors_check', {})
+            
             prompt = f"""You are a senior cybersecurity consultant preparing a comprehensive threat intelligence report for {target}.
 
 RECONNAISSANCE DATA:
@@ -146,6 +160,27 @@ SSL/TLS CERTIFICATE:
 - Issuer: {ssl_issuer}
 - TLS Version: {ssl_tls}
 - Days Until Expiry: {ssl_days}
+
+DNS RECORDS:
+{chr(10).join(dns_summary) if dns_summary else 'No DNS records retrieved'}
+
+WHOIS INTELLIGENCE:
+- Registrar: {whois_info.get('registrar', 'Unknown')}
+- Created: {whois_info.get('creation_date', 'Unknown')}
+- Expires: {whois_info.get('expiry_date', 'Unknown')}
+- Name Servers: {whois_info.get('name_servers', 'Unknown')}
+- DNSSEC: {whois_info.get('dnssec', 'Unknown')}
+
+COOKIE SECURITY:
+{chr(10).join(cookie_summary) if cookie_summary else 'No cookies detected'}
+
+HTTP METHODS:
+- Allowed: {', '.join(http_methods.get('methods', []))}
+- Risky Methods: {', '.join(risky_methods) if risky_methods else 'None'}
+
+CORS POLICY:
+- Wildcard Origin: {cors_data.get('wildcard_origin', False)}
+- Reflects Arbitrary Origin: {cors_data.get('reflects_origin', False)}
 
 KNOWN VULNERABILITIES (CVEs):
 {chr(10).join(cve_list) if cve_list else 'No known CVEs detected'}
@@ -173,6 +208,10 @@ Provide a comprehensive 4-5 sentence overview of the target's security posture, 
 Provide detailed bullet points for each discovery:
 - Security Headers analysis and implications for XSS/clickjacking protection
 - SSL/TLS configuration assessment
+- DNS configuration including SPF/DMARC email security
+- WHOIS intelligence and domain registration details
+- Cookie security analysis
+- HTTP methods and CORS policy assessment
 - Known CVEs affecting detected technologies
 - Admin panel exposure risks
 - Subdomain and email enumeration results
@@ -189,6 +228,8 @@ Provide a thorough risk analysis including:
 List specific security weaknesses identified:
 - Each CVE with exploitation potential
 - Missing security headers and their impact
+- Cookie security issues (missing Secure/HttpOnly/SameSite flags)
+- CORS misconfigurations
 - Exposed admin panels and sensitive paths
 - Directory listing vulnerabilities
 - Severity rating for each issue

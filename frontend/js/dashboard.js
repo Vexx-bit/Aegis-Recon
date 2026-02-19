@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║                            AEGIS RECON                                     ║
+ * ║                            AEGIS RECON v2.0                                ║
  * ║              Advanced Threat Intelligence System                           ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
  * ║  Author: VexSpitta                                                         ║
@@ -13,11 +13,10 @@
  */
 
 // ============================================================================
-// AUTHOR PROTECTION & BRANDING
+// CONSOLE BRANDING
 // ============================================================================
-(function() {
-    // Console Branding
-    const ASCII_BANNER = `
+(function () {
+    const B = `
 %c╔═══════════════════════════════════════════════════════════════╗
 ║     _    _____ ____ ___ ____    ____  _____ ____ ___  _   _   ║
 ║    / \\  | ____/ ___|_ _/ ___|  |  _ \\| ____/ ___/ _ \\| \\ | |  ║
@@ -25,41 +24,25 @@
 ║  / ___ \\| |__| |_| || | ___) | |  _ <| |__| |__| |_| | |\\  |  ║
 ║ /_/   \\_\\_____\\____|___|____/  |_| \\_\\_____\\____\\___/|_| \\_|  ║
 ╠═══════════════════════════════════════════════════════════════╣
-║  🛡️  Advanced Threat Intelligence System                       ║
+║  🛡️  Advanced Threat Intelligence System  v2.0                 ║
 ║  👤 Author: VexSpitta                                          ║
 ║  🔗 GitHub: https://github.com/Vexx-bit                        ║
-║  📦 Repo:   https://github.com/Vexx-bit/Aegis-Recon            ║
-╠═══════════════════════════════════════════════════════════════╣
-║  ⚠️  WARNING: This software is protected by copyright law.     ║
-║  Unauthorized reproduction or distribution is prohibited.      ║
-╚═══════════════════════════════════════════════════════════════╝
-`;
-    
-    console.log(ASCII_BANNER, 'color: #00ff88; font-family: monospace; font-weight: bold;');
-    console.log('%c🔐 Aegis Recon v1.0.0 | © 2024-2026 VexSpitta', 'color: #3b82f6; font-size: 14px; font-weight: bold;');
-    console.log('%c⚠️ If you found this code useful, please credit the author!', 'color: #f59e0b; font-size: 12px;');
-    
-    // Anti-DevTools Warning (non-intrusive)
-    if (typeof console.clear === 'function') {
-        console.log('%c🚫 Inspecting? Please respect the author\'s work.', 'color: #ef4444; font-size: 11px;');
-    }
+╚═══════════════════════════════════════════════════════════════╝`;
+    console.log(B, 'color:#00ff88;font-family:monospace;font-weight:bold;');
+    console.log('%c🔐 Aegis Recon v2.0.0 | © 2024-2026 VexSpitta', 'color:#3b82f6;font-size:14px;font-weight:bold;');
 })();
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 const API_BASE_URL = window.AEGIS_CONFIG?.apiBaseUrl || '/api';
-const AUTHOR = {
-    name: 'VexSpitta',
-    github: 'https://github.com/Vexx-bit',
-    repo: 'https://github.com/Vexx-bit/Aegis-Recon',
-    version: '1.0.0'
-};
+const AUTHOR = { name: 'VexSpitta', github: 'https://github.com/Vexx-bit', repo: 'https://github.com/Vexx-bit/Aegis-Recon', version: '2.0.0' };
 
 // State
 let currentResults = null;
+let cachedReport = null;
 
-// DOM Elements
+// DOM refs
 const scanForm = document.getElementById('scanForm');
 const domainInput = document.getElementById('domainInput');
 const startScanBtn = document.getElementById('startScanBtn');
@@ -68,1276 +51,785 @@ const statusSection = document.getElementById('statusSection');
 const statusMessage = document.getElementById('statusMessage');
 const progressBar = document.getElementById('progressBar');
 const targetDisplay = document.getElementById('targetDisplay');
-const resultsSection = document.getElementById('resultsSection');
 const newScanBtn = document.getElementById('newScanBtn');
 
 // ============================================================================
-// ANTI-COPY PROTECTIONS (Basic)
+// PROTECTIONS (non-intrusive)
 // ============================================================================
-(function applyProtections() {
-    // Disable right-click context menu
-    document.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        console.warn('🔐 Right-click disabled. Source: github.com/Vexx-bit/Aegis-Recon');
+(function () {
+    document.addEventListener('contextmenu', e => { e.preventDefault(); });
+    document.addEventListener('keydown', e => {
+        if ((e.ctrlKey && e.key === 'u') || e.key === 'F12') e.preventDefault();
     });
-    
-    // Disable common keyboard shortcuts for view source
-    document.addEventListener('keydown', (e) => {
-        // Ctrl+U (View Source)
-        if (e.ctrlKey && e.key === 'u') {
-            e.preventDefault();
-            console.warn('🔐 View source disabled. Author: VexSpitta');
-        }
-        // Ctrl+Shift+I (DevTools)
-        if (e.ctrlKey && e.shiftKey && e.key === 'I') {
-            e.preventDefault();
-            console.warn('🔐 Please respect the author\'s work. Author: VexSpitta');
-        }
-        // F12 (DevTools)
-        if (e.key === 'F12') {
-            e.preventDefault();
-        }
-    });
-    
-    // Disable text selection on sensitive areas (optional - can be annoying)
-    // document.body.style.userSelect = 'none';
-    
-    // Add watermark to console periodically
-    setInterval(() => {
-        if (console._aegisWarned) return;
-        console.log('%c🛡️ Aegis Recon by VexSpitta | github.com/Vexx-bit', 'color: #6366f1; font-size: 10px;');
-    }, 30000);
 })();
 
 // ============================================================================
-// INITIALIZATION
+// INIT
 // ============================================================================
 document.addEventListener('DOMContentLoaded', () => {
     scanForm.addEventListener('submit', handleScanSubmit);
     newScanBtn.addEventListener('click', resetDashboard);
-    
-    // Report button
-    const reportBtn = document.getElementById('generateReportBtn');
-    if (reportBtn) {
-        reportBtn.addEventListener('click', generateReport);
-    }
-    
-    // Add author footer dynamically
-    addAuthorFooter();
-});
 
-/**
- * Add author footer to the page
- */
-function addAuthorFooter() {
-    const footer = document.createElement('footer');
-    footer.innerHTML = `
-        <div class="text-center py-3 mt-4 border-top" style="font-size: 0.8rem; color: #64748b;">
-            <span>🛡️ Aegis Recon v${AUTHOR.version}</span> | 
-            <span>Developed by <a href="${AUTHOR.github}" target="_blank" rel="noopener" style="color: #3b82f6; text-decoration: none;">${AUTHOR.name}</a></span> |
-            <a href="${AUTHOR.repo}" target="_blank" rel="noopener" style="color: #6366f1; text-decoration: none;">
-                <i class="bi bi-github"></i> Source
-            </a>
-        </div>
-    `;
-    document.body.appendChild(footer);
-}
+    const reportBtn = document.getElementById('generateReportBtn');
+    if (reportBtn) reportBtn.addEventListener('click', generateReport);
+
+    // Modal close handlers (pure JS, no Bootstrap)
+    const modalOverlay = document.getElementById('reportModal');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    const modalDismissBtn = document.getElementById('modalDismissBtn');
+    if (modalCloseBtn) modalCloseBtn.addEventListener('click', () => modalOverlay.classList.remove('active'));
+    if (modalDismissBtn) modalDismissBtn.addEventListener('click', () => modalOverlay.classList.remove('active'));
+    if (modalOverlay) modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) modalOverlay.classList.remove('active'); });
+});
 
 // ============================================================================
 // SCAN HANDLING
 // ============================================================================
-
-/**
- * Handle scan form submission
- */
 async function handleScanSubmit(e) {
     e.preventDefault();
-    
     const domain = domainInput.value.trim();
-    if (!domain) {
-        showAlert('Please enter a domain', 'warning');
-        return;
-    }
-    
-    // Clean domain
+    if (!domain) { showAlert('Please enter a domain', 'warning'); return; }
+
     const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    
-    // Update UI
+
+    // UI → scanning state
     startScanBtn.disabled = true;
-    startScanBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
-    
-    // Show status
+    startScanBtn.innerHTML = '<span class="status-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;"></span><span>Scanning...</span>';
+
     statusSection.classList.remove('hidden');
     targetDisplay.textContent = cleanDomain;
     statusMessage.innerHTML = '<i class="bi bi-gear-fill"></i> Scanning in progress...';
     progressBar.style.width = '30%';
-    progressBar.classList.remove('bg-danger');
-    
-    // Show scanning badge in header
+
     const statusDisplay = document.getElementById('statusDisplay');
-    if (statusDisplay) statusDisplay.style.display = 'inline-block';
-    
+    if (statusDisplay) statusDisplay.style.display = 'inline-flex';
+
     try {
-        console.log(`[AEGIS] 🔍 Starting scan for: ${cleanDomain} | By ${AUTHOR.name}`);
-        
-        // Call serverless API
+        console.log(`[AEGIS] 🔍 Scanning: ${cleanDomain}`);
         const response = await fetch(`${API_BASE_URL}/scan`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ domain: cleanDomain })
         });
-        
         progressBar.style.width = '70%';
-        
         const data = await response.json();
         console.log('[AEGIS] 📊 Response:', data);
-        
-        if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Scan failed');
-        }
-        
+
+        if (!response.ok || !data.success) throw new Error(data.error || 'Scan failed');
+
         progressBar.style.width = '100%';
         statusMessage.innerHTML = '<i class="bi bi-check-circle-fill"></i> Scan complete!';
-        
-        // Store and display results
+
         currentResults = data.results;
         displayResults(data.results);
-        
-        // Hide status after brief delay
+
         setTimeout(() => {
             statusSection.classList.add('hidden');
             if (statusDisplay) statusDisplay.style.display = 'none';
         }, 1500);
-        
-        // Show new scan button
-        newScanBtn.style.display = 'inline-block';
-        
-        // Enable report button
+
+        newScanBtn.style.display = 'inline-flex';
         const reportBtn = document.getElementById('generateReportBtn');
         if (reportBtn) reportBtn.disabled = false;
-        
+
     } catch (error) {
-        console.error('[AEGIS] ❌ Error:', error);
+        console.error('[AEGIS] ❌', error);
         showAlert('Scan failed: ' + error.message, 'danger');
         statusMessage.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + error.message;
-        progressBar.classList.add('bg-danger');
+        progressBar.style.background = 'var(--c-danger)';
     } finally {
         startScanBtn.disabled = false;
-        startScanBtn.innerHTML = '<i class="bi bi-search"></i> Scan';
+        startScanBtn.innerHTML = '<i class="bi bi-radar"></i><span>Scan</span>';
     }
 }
 
 // ============================================================================
-// DISPLAY FUNCTIONS
+// DISPLAY RESULTS
 // ============================================================================
-
-/**
- * Display scan results
- */
 function displayResults(results) {
-    if (!results || !results.phases) {
-        console.warn('[AEGIS] No results to display');
-        return;
-    }
-    
+    if (!results || !results.phases) return;
     const phases = results.phases;
-    
-    // Update stats with animation
+
+    // Stat counters
     animateNumber('statSubdomains', phases.subdomains?.length || 0);
     animateNumber('statHosts', phases.hosts?.length || 0);
     animateNumber('statEmails', phases.osint?.emails?.length || 0);
-    
-    // Calculate threats
+
+    // DNS count
+    const dnsCount = (results.dns_records || []).length;
+    animateNumber('statDns', dnsCount);
+
+    // Threats
     let threatCount = 0;
-    (phases.hosts || []).forEach(host => {
-        (host.ports || []).forEach(port => {
-            if ([21, 22, 23, 3389, 5900].includes(port)) threatCount++;
-        });
-    });
-    
-    // Add CVE count to threats
-    const cveCount = (results.known_cves || []).length;
-    threatCount += cveCount;
-    
+    (phases.hosts || []).forEach(h => { (h.ports || []).forEach(p => { if ([21, 22, 23, 3389, 5900].includes(p)) threatCount++; }); });
+    threatCount += (results.known_cves || []).length;
     animateNumber('statVulns', threatCount);
-    
-    // Display security score
-    const score = results.security_score || 70;
-    displaySecurityScore(score, results);
-    
-    // Display hosts
+
+    // Host count pill
+    const hostCountEl = document.getElementById('hostCount');
+    if (hostCountEl) hostCountEl.textContent = `${phases.hosts?.length || 0} hosts`;
+
+    // Score
+    displaySecurityScore(results.security_score || 70, results);
+
+    // Sections
     displayHosts(phases.hosts || []);
-    
-    // Display technologies
     displayTechnologies(phases.technologies || []);
-    
-    // Display OSINT
     displayOSINT(phases.osint || {});
-    
-    // Display new security check results
     displaySecurityHeaders(results.security_headers);
     displaySSLInfo(results.ssl_info);
     displayAdminPanels(results.admin_panels);
     displayKnownCVEs(results.known_cves);
     displayRobotsTxt(results.robots_txt);
     displayDirectoryListing(results.directory_listing);
-    
-    // Enable export button
+
+    // New OSINT panels
+    displayDnsRecords(results.dns_records);
+    displayWhois(results.whois_info);
+    displayCookieSecurity(results.cookie_security);
+    displayHttpMethods(results.http_methods);
+    displayCors(results.cors_check);
+
+    // Export button
     const exportBtn = document.getElementById('exportJsonBtn');
-    if (exportBtn) {
-        exportBtn.disabled = false;
-        exportBtn.onclick = () => exportJSON(results);
-    }
+    if (exportBtn) { exportBtn.disabled = false; exportBtn.onclick = () => exportJSON(results); }
 }
 
-/**
- * Animate number counting
- */
-function animateNumber(elementId, target) {
-    const element = document.getElementById(elementId);
-    if (!element) return;
-    
-    const duration = 800;
-    const start = 0;
-    const increment = target / (duration / 16);
-    let current = start;
-    
-    const timer = setInterval(() => {
-        current += increment;
-        if (current >= target) {
-            element.textContent = target;
-            clearInterval(timer);
-        } else {
-            element.textContent = Math.floor(current);
-        }
+// ============================================================================
+// ANIMATE NUMBER
+// ============================================================================
+function animateNumber(id, target) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const dur = 800, inc = target / (dur / 16);
+    let cur = 0;
+    const t = setInterval(() => {
+        cur += inc;
+        if (cur >= target) { el.textContent = target; clearInterval(t); }
+        else el.textContent = Math.floor(cur);
     }, 16);
 }
 
-/**
- * Display security score with animated progress
- */
+// ============================================================================
+// SECURITY SCORE (SVG Ring)
+// ============================================================================
 function displaySecurityScore(score, results = {}) {
     const section = document.getElementById('securityScoreSection');
-    const scoreValue = document.getElementById('securityScoreValue');
-    const progressBar = document.getElementById('scoreProgressBar');
-    
-    if (!section || !scoreValue || !progressBar) return;
-    
-    section.style.display = 'block';
-    
-    // Animate score
-    let current = 0;
+    const ring = document.getElementById('scoreRing');
+    const val = document.getElementById('securityScoreValue');
+    const lbl = document.getElementById('scoreLabel');
+    const desc = document.getElementById('scoreDescription');
+    const factorsEl = document.getElementById('scoreFactors');
+
+    if (!section) return;
+    section.classList.remove('hidden');
+
+    // Ring animation
+    const circumference = 2 * Math.PI * 52; // ~326.73
+    const offset = circumference - (score / 100) * circumference;
+
+    // Color by score
+    let color, label;
+    if (score >= 80) { color = '#10b981'; label = 'Low Exposure'; }
+    else if (score >= 60) { color = '#f59e0b'; label = 'Moderate Exposure'; }
+    else if (score >= 40) { color = '#f97316'; label = 'High Exposure'; }
+    else { color = '#ef4444'; label = 'Critical Exposure'; }
+
+    // Animate
+    let cur = 0;
     const timer = setInterval(() => {
-        current += 2;
-        if (current >= score) {
-            scoreValue.textContent = score + '/100';
-            progressBar.style.width = score + '%';
+        cur += 2;
+        if (cur >= score) {
+            cur = score;
             clearInterval(timer);
-        } else {
-            scoreValue.textContent = current + '/100';
-            progressBar.style.width = current + '%';
         }
-    }, 20);
-    
-    // Update color based on score
-    let scoreLabel = '';
-    if (score >= 80) {
-        progressBar.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
-        scoreLabel = 'Low Exposure';
-    } else if (score >= 60) {
-        progressBar.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
-        scoreLabel = 'Moderate Exposure';
-    } else if (score >= 40) {
-        progressBar.style.background = 'linear-gradient(90deg, #f97316, #fb923c)';
-        scoreLabel = 'High Exposure';
-    } else {
-        progressBar.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
-        scoreLabel = 'Critical Exposure';
+        if (val) val.textContent = cur;
+        if (ring) {
+            const o = circumference - (cur / 100) * circumference;
+            ring.style.strokeDashoffset = o;
+            ring.style.stroke = color;
+        }
+    }, 18);
+
+    if (val) val.style.color = color;
+    if (lbl) lbl.textContent = label;
+    if (desc) desc.textContent = results.score_disclaimer || 'Score reflects visible exposure from passive reconnaissance only.';
+
+    // Score factors
+    if (factorsEl && results.score_factors) {
+        factorsEl.innerHTML = results.score_factors.slice(0, 8).map(f => {
+            const cls = f.startsWith('+') ? 'score-factor--pos' : 'score-factor--neg';
+            return `<span class="score-factor ${cls}">${f}</span>`;
+        }).join('');
     }
-    
-    // Add disclaimer below score
-    const disclaimer = results.score_disclaimer || 
-        'This score reflects visible exposure from passive reconnaissance only.';
-    
-    // Check if disclaimer element exists, if not create it
-    let disclaimerEl = section.querySelector('.score-disclaimer');
-    if (!disclaimerEl) {
-        disclaimerEl = document.createElement('div');
-        disclaimerEl.className = 'score-disclaimer';
-        disclaimerEl.style.cssText = `
-            font-size: 11px;
-            color: #94a3b8;
-            margin-top: 10px;
-            padding: 8px 12px;
-            background: rgba(148, 163, 184, 0.1);
-            border-radius: 6px;
-            border-left: 3px solid #64748b;
-        `;
-        section.appendChild(disclaimerEl);
-    }
-    disclaimerEl.innerHTML = `
-        <strong style="color: #64748b;">⚠️ ${scoreLabel}</strong><br>
-        <span style="font-size: 10px;">${disclaimer}</span>
-    `;
 }
 
-/**
- * Export results as JSON
- */
-function exportJSON(results) {
-    const dataStr = JSON.stringify(results, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `aegis-recon-${results.target}-${Date.now()}.json`;
-    a.click();
-    
-    URL.revokeObjectURL(url);
-    showAlert('Results exported successfully!', 'success');
-}
-
-/**
- * Display hosts list
- */
+// ============================================================================
+// HOSTS
+// ============================================================================
 function displayHosts(hosts) {
-    const container = document.getElementById('hostsContent');
-    
+    const c = document.getElementById('hostsContent');
     if (!hosts || hosts.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="bi bi-server"></i>
-                <h5 style="color: #94a3b8;">No Active Hosts</h5>
-                <p class="mb-0">No responsive hosts were detected</p>
-            </div>
-        `;
+        c.innerHTML = '<div class="empty-state"><i class="bi bi-server"></i><h4>No Active Hosts</h4><p>No responsive hosts detected</p></div>';
         return;
     }
-    
-    // Port service names
-    const portServices = {
-        21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
-        80: 'HTTP', 443: 'HTTPS', 3306: 'MySQL', 3389: 'RDP',
-        5432: 'PostgreSQL', 5900: 'VNC', 8080: 'HTTP-ALT', 8443: 'HTTPS-ALT'
-    };
-    
+    const portNames = { 21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS', 80: 'HTTP', 443: 'HTTPS', 3306: 'MySQL', 3389: 'RDP', 5432: 'Postgres', 5900: 'VNC', 8080: 'HTTP-Alt', 8443: 'HTTPS-Alt' };
+
     let html = '<div class="host-list">';
-    
-    hosts.forEach((host, index) => {
-        const portBadges = (host.ports || []).map(port => {
-            const isRisky = [21, 22, 23, 3389, 5900].includes(port);
-            const service = portServices[port] || 'PORT';
-            const badgeClass = isRisky ? 'bg-warning' : 'bg-primary';
-            const icon = isRisky ? '<i class="bi bi-exclamation-triangle-fill me-1"></i>' : '';
-            return `<span class="badge ${badgeClass} me-1">${icon}${port} <small style="opacity: 0.7">${service}</small></span>`;
+    hosts.forEach((h, i) => {
+        const portBadges = (h.ports || []).map(p => {
+            const risky = [21, 22, 23, 3389, 5900].includes(p);
+            const cls = risky ? 'badge--warning' : 'badge--info';
+            return `<span class="badge badge--port ${cls}">${risky ? '<i class="bi bi-exclamation-triangle-fill"></i> ' : ''}${p} <small style="opacity:.7">${portNames[p] || ''}</small></span>`;
         }).join('');
-        
-        // Geo info
+
         let geoHtml = '';
-        if (host.geo && (host.geo.city || host.geo.country)) {
-            const location = [host.geo.city, host.geo.country].filter(Boolean).join(', ');
-            geoHtml = `<span class="geo-badge"><i class="bi bi-geo-alt-fill"></i> ${location}</span>`;
+        if (h.geo && (h.geo.city || h.geo.country)) {
+            geoHtml = `<span class="host-item__geo"><i class="bi bi-geo-alt-fill"></i> ${[h.geo.city, h.geo.country].filter(Boolean).join(', ')}</span>`;
         }
-        
-        // Org info
         let orgHtml = '';
-        if (host.geo && host.geo.org) {
-            orgHtml = `<div class="text-muted small mt-1" style="font-size: 0.7rem;"><i class="bi bi-building"></i> ${host.geo.org}</div>`;
-        }
-        
+        if (h.geo?.org) orgHtml = `<div class="host-item__org"><i class="bi bi-building"></i> ${h.geo.org}</div>`;
+
         html += `
-            <div class="host-item fade-in" style="animation-delay: ${index * 0.1}s">
-                <div class="d-flex justify-content-between align-items-start">
+            <div class="host-item fade-in" style="animation-delay:${i * .07}s">
+                <div class="host-item__top">
                     <div>
-                        <strong>${host.hostname}</strong>
-                        <div class="d-flex align-items-center gap-2 mt-1">
-                            <code style="font-size: 0.8rem; color: #94a3b8; background: rgba(0,0,0,0.2); padding: 0.1rem 0.4rem; border-radius: 4px;">${host.ip}</code>
+                        <div class="host-item__name">${h.hostname}</div>
+                        <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-top:.2rem;">
+                            <span class="host-item__ip">${h.ip}</span>
                             ${geoHtml}
                         </div>
                         ${orgHtml}
                     </div>
-                    <span class="badge ${host.status === 'up' ? 'bg-success' : 'bg-secondary'}">
-                        <i class="bi ${host.status === 'up' ? 'bi-check-circle' : 'bi-x-circle'}"></i> ${host.status}
+                    <span class="badge ${h.status === 'up' ? 'badge--success' : 'badge--muted'}">
+                        <i class="bi ${h.status === 'up' ? 'bi-check-circle' : 'bi-x-circle'}"></i> ${h.status}
                     </span>
                 </div>
-                <div class="mt-2">
-                    ${portBadges || '<span class="text-muted small"><i class="bi bi-shield-check"></i> No open ports detected</span>'}
+                <div class="host-item__ports">
+                    ${portBadges || '<span class="muted" style="font-size:.68rem;"><i class="bi bi-shield-check"></i> No open ports</span>'}
                 </div>
-            </div>
-        `;
+            </div>`;
     });
-    
     html += '</div>';
-    container.innerHTML = html;
+    c.innerHTML = html;
 }
 
-/**
- * Display technologies
- */
-function displayTechnologies(technologies) {
-    const container = document.getElementById('technologyContent');
-    
-    if (!technologies || technologies.length === 0) {
-        container.innerHTML = '<p class="text-muted small mb-0">No technologies detected</p>';
-        return;
+// ============================================================================
+// TECHNOLOGIES
+// ============================================================================
+function displayTechnologies(techs) {
+    const c = document.getElementById('technologyContent');
+    if (!techs || techs.length === 0) { c.innerHTML = '<p class="muted">No technologies detected</p>'; return; }
+
+    const icons = { wordpress: 'bi-wordpress', apache: 'bi-server', nginx: 'bi-server', cloudflare: 'bi-cloud', react: 'bi-code-slash', vue: 'bi-code-slash', angular: 'bi-code-slash', jquery: 'bi-code-slash', bootstrap: 'bi-grid', php: 'bi-filetype-php', node: 'bi-diagram-3', python: 'bi-filetype-py', next: 'bi-code-slash', shopify: 'bi-cart3', wix: 'bi-palette', tailwind: 'bi-wind' };
+    function getIcon(name) {
+        const l = name.toLowerCase();
+        for (const [k, v] of Object.entries(icons)) { if (l.includes(k)) return v; }
+        return 'bi-cpu';
     }
-    
-    let html = '<div class="d-flex flex-wrap gap-2">';
-    
-    technologies.forEach(tech => {
-        const icon = getTechIcon(tech.name);
-        html += `
-            <span class="badge bg-light text-dark border" style="font-size: 0.8rem;">
-                <i class="bi ${icon}"></i> ${tech.name}
-            </span>
-        `;
-    });
-    
-    html += '</div>';
-    container.innerHTML = html;
+
+    c.innerHTML = '<div class="tech-grid">' + techs.map(t =>
+        `<span class="tech-tag"><i class="bi ${getIcon(t.name)}"></i> ${t.name}</span>`
+    ).join('') + '</div>';
 }
 
-/**
- * Get icon for technology
- */
-function getTechIcon(name) {
-    const icons = {
-        'wordpress': 'bi-wordpress',
-        'apache': 'bi-server',
-        'nginx': 'bi-server',
-        'cloudflare': 'bi-cloud',
-        'react': 'bi-code-slash',
-        'vue': 'bi-code-slash',
-        'angular': 'bi-code-slash',
-        'jquery': 'bi-code-slash',
-        'bootstrap': 'bi-grid',
-        'php': 'bi-filetype-php',
-        'node': 'bi-diagram-3',
-        'python': 'bi-filetype-py'
-    };
-    
-    const lowerName = name.toLowerCase();
-    for (const [key, icon] of Object.entries(icons)) {
-        if (lowerName.includes(key)) return icon;
-    }
-    return 'bi-cpu';
-}
-
-/**
- * Display OSINT data
- */
+// ============================================================================
+// OSINT (Emails)
+// ============================================================================
 function displayOSINT(osint) {
-    const container = document.getElementById('emailsList');
+    const c = document.getElementById('emailsList');
     const emails = osint.emails || [];
-    
-    if (emails.length === 0) {
-        container.innerHTML = '<p class="text-muted small mb-0">No exposed emails found</p>';
-        return;
-    }
-    
-    let html = '<ul class="list-unstyled mb-0">';
-    
-    emails.forEach(email => {
-        html += `
-            <li class="d-flex align-items-center py-1">
-                <i class="bi bi-envelope text-danger me-2"></i>
-                <span class="small">${email}</span>
-            </li>
-        `;
-    });
-    
-    html += '</ul>';
-    container.innerHTML = html;
+    if (emails.length === 0) { c.innerHTML = '<p class="muted">No exposed emails found</p>'; return; }
+    c.innerHTML = '<ul class="email-list">' + emails.map(e =>
+        `<li><i class="bi bi-envelope-fill"></i><span>${e}</span></li>`
+    ).join('') + '</ul>';
 }
 
-/**
- * Display Security Headers Analysis
- */
-function displaySecurityHeaders(headersData) {
-    const container = document.getElementById('securityHeadersContent');
-    if (!container) return;
-    
-    if (!headersData || headersData.error) {
-        container.innerHTML = '<p class="text-muted small">Unable to check security headers</p>';
-        return;
-    }
-    
-    const gradeColors = {
-        'A': '#10b981', 'B': '#22c55e', 'C': '#f59e0b', 'D': '#f97316', 'F': '#ef4444'
-    };
-    
-    let html = `
-        <div class="d-flex align-items-center mb-3">
-            <div class="me-3" style="
-                width: 50px; height: 50px; 
-                border-radius: 50%; 
-                background: ${gradeColors[headersData.grade] || '#6b7280'};
-                display: flex; align-items: center; justify-content: center;
-                flex-shrink: 0;
-            ">
-                <span style="color: white; font-weight: bold; font-size: 1.5rem;">${headersData.grade}</span>
-            </div>
-            <div>
-                <strong style="color: #e2e8f0;">Security Headers Grade</strong><br>
-                <small class="text-muted">${headersData.score_percentage || 0}% of recommended headers present</small>
-            </div>
+// ============================================================================
+// SECURITY HEADERS
+// ============================================================================
+function displaySecurityHeaders(data) {
+    const c = document.getElementById('securityHeadersContent');
+    if (!c) return;
+    if (!data || data.error) { c.innerHTML = '<p class="muted">Unable to check security headers</p>'; return; }
+
+    let html = `<div class="grade-display">
+        <div class="grade-circle grade-${data.grade}">${data.grade}</div>
+        <div>
+            <strong style="color:var(--c-text)">Security Headers Grade</strong><br>
+            <span class="muted">${data.score_percentage || 0}% coverage</span>
         </div>
-    `;
-    
-    if (headersData.headers_missing && headersData.headers_missing.length > 0) {
-        html += '<div class="mb-2"><small class="text-danger"><i class="bi bi-exclamation-triangle"></i> Missing Headers:</small></div>';
-        html += '<ul class="list-unstyled mb-2" style="font-size: 0.75rem;">';
-        headersData.headers_missing.forEach(h => {
-            html += `<li class="py-1 border-bottom border-secondary d-flex align-items-center">
-                <i class="bi bi-x-circle text-danger me-2"></i>
-                <span class="text-light">${h.name}</span>
-            </li>`;
+    </div>`;
+
+    if (data.headers_missing?.length) {
+        html += '<div class="header-list">';
+        data.headers_missing.forEach(h => {
+            html += `<div class="header-row header-row--missing"><i class="bi bi-x-circle-fill"></i><span style="color:var(--c-text-2)">${h.name}</span></div>`;
         });
-        html += '</ul>';
+        html += '</div>';
     }
-    
-    if (headersData.headers_found && headersData.headers_found.length > 0) {
-        html += '<div class="mb-2"><small class="text-success"><i class="bi bi-check-circle"></i> Found Headers:</small></div>';
-        html += '<ul class="list-unstyled mb-0" style="font-size: 0.75rem;">';
-        headersData.headers_found.forEach(h => {
-            html += `<li class="py-1 d-flex align-items-center">
-                <i class="bi bi-check-circle-fill text-success me-2"></i>
-                <span class="text-light">${h.name}</span>
-            </li>`;
+    if (data.headers_found?.length) {
+        html += '<div class="header-list" style="margin-top:.5rem;">';
+        data.headers_found.forEach(h => {
+            html += `<div class="header-row header-row--found"><i class="bi bi-check-circle-fill"></i><span style="color:var(--c-text-2)">${h.name}</span></div>`;
         });
-        html += '</ul>';
+        html += '</div>';
     }
-    
-    container.innerHTML = html;
+    c.innerHTML = html;
 }
 
-/**
- * Display SSL/TLS Certificate Info
- */
-function displaySSLInfo(sslData) {
-    const container = document.getElementById('sslInfoContent');
-    if (!container) return;
-    
-    if (!sslData || !sslData.valid) {
-        container.innerHTML = `
-            <div class="alert alert-warning py-2 mb-0">
-                <i class="bi bi-exclamation-triangle"></i>
-                <small>SSL certificate could not be verified</small>
-            </div>
-        `;
+// ============================================================================
+// SSL / TLS
+// ============================================================================
+function displaySSLInfo(data) {
+    const c = document.getElementById('sslInfoContent');
+    if (!c) return;
+    if (!data || !data.valid) {
+        c.innerHTML = '<div class="inline-alert inline-alert--warning"><i class="bi bi-exclamation-triangle"></i> SSL certificate could not be verified</div>';
         return;
     }
-    
-    const isExpiringSoon = sslData.days_until_expiry < 30;
-    const statusColor = sslData.is_expired ? 'danger' : (isExpiringSoon ? 'warning' : 'success');
-    
-    let html = `
-        <div class="d-flex align-items-center mb-2">
-            <i class="bi bi-shield-lock-fill text-${statusColor} me-2" style="font-size: 1.5rem;"></i>
-            <div>
-                <strong class="text-${statusColor}">
-                    ${sslData.is_expired ? 'Certificate Expired!' : (isExpiringSoon ? 'Expiring Soon' : 'Valid Certificate')}
-                </strong>
-            </div>
+    const isExpiring = data.days_until_expiry < 30;
+    const color = data.is_expired ? 'danger' : (isExpiring ? 'warning' : 'success');
+    const label = data.is_expired ? 'Certificate Expired!' : (isExpiring ? 'Expiring Soon' : 'Valid Certificate');
+
+    c.innerHTML = `
+        <div class="ssl-status">
+            <i class="bi bi-shield-lock-fill text-${color}" style="font-size:1.3rem;"></i>
+            <strong class="text-${color}">${label}</strong>
         </div>
-        <table class="table table-sm table-borderless mb-0" style="font-size: 0.8rem;">
-            <tr><td class="text-muted">Issuer:</td><td class="text-light">${sslData.issuer}</td></tr>
-            <tr><td class="text-muted">TLS Version:</td><td class="text-light">${sslData.tls_version || 'Unknown'}</td></tr>
-            <tr><td class="text-muted">Expires:</td><td class="text-${statusColor}">
-                ${sslData.days_until_expiry !== undefined ? sslData.days_until_expiry + ' days' : 'Unknown'}
-            </td></tr>
-        </table>
-    `;
-    
-    container.innerHTML = html;
+        <table class="info-table">
+            <tr><td>Issuer</td><td>${data.issuer}</td></tr>
+            <tr><td>TLS Version</td><td>${data.tls_version || 'Unknown'}</td></tr>
+            <tr><td>Expires In</td><td class="text-${color}">${data.days_until_expiry !== undefined ? data.days_until_expiry + ' days' : 'Unknown'}</td></tr>
+        </table>`;
 }
 
-/**
- * Display Admin Panels Detection
- */
-function displayAdminPanels(panelsData) {
-    const container = document.getElementById('adminPanelsContent');
-    if (!container) return;
-    
-    if (!panelsData || !panelsData.found || panelsData.found.length === 0) {
-        container.innerHTML = `
-            <div class="text-success small">
-                <i class="bi bi-check-circle"></i> No exposed admin panels detected
-            </div>
-        `;
+// ============================================================================
+// ADMIN PANELS
+// ============================================================================
+function displayAdminPanels(data) {
+    const c = document.getElementById('adminPanelsContent');
+    if (!c) return;
+    if (!data || !data.found || data.found.length === 0) {
+        c.innerHTML = '<div class="inline-alert inline-alert--success"><i class="bi bi-check-circle"></i> No exposed admin panels detected</div>';
         return;
     }
-    
-    let html = '<ul class="list-unstyled mb-0">';
-    panelsData.found.forEach(panel => {
-        const statusBadge = panel.accessible 
-            ? '<span class="badge bg-danger">Accessible</span>'
-            : '<span class="badge bg-warning text-dark">Protected</span>';
-        html += `
-            <li class="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary">
-                <code class="text-info">${panel.path}</code>
-                ${statusBadge}
-            </li>
-        `;
-    });
-    html += '</ul>';
-    
-    container.innerHTML = html;
+    c.innerHTML = data.found.map(p => {
+        const badge = p.accessible
+            ? '<span class="badge badge--danger">Accessible</span>'
+            : '<span class="badge badge--warning">Protected</span>';
+        return `<div class="panel-row"><code>${p.path}</code>${badge}</div>`;
+    }).join('');
 }
 
-/**
- * Display Known CVEs
- */
-function displayKnownCVEs(cvesData) {
-    const container = document.getElementById('knownCVEsContent');
-    if (!container) return;
-    
-    if (!cvesData || cvesData.length === 0) {
-        container.innerHTML = `
-            <div class="text-success small">
-                <i class="bi bi-check-circle"></i> No known CVEs detected in detected technologies
-            </div>
-        `;
+// ============================================================================
+// KNOWN CVEs
+// ============================================================================
+function displayKnownCVEs(data) {
+    const c = document.getElementById('knownCVEsContent');
+    if (!c) return;
+    if (!data || data.length === 0) {
+        c.innerHTML = '<div class="inline-alert inline-alert--success"><i class="bi bi-check-circle"></i> No known CVEs detected</div>';
         return;
     }
-    
-    const severityColors = {
-        'Critical': 'danger',
-        'High': 'warning',
-        'Medium': 'info',
-        'Low': 'secondary'
-    };
-    
+    const sevMap = { Critical: 'critical', High: 'high', Medium: 'medium', Low: 'low' };
+    c.innerHTML = data.map(cve => `
+        <div class="cve-item cve-item--${sevMap[cve.severity] || 'low'}">
+            <div class="cve-item__header">
+                <span class="badge badge--${cve.severity === 'Critical' ? 'danger' : cve.severity === 'High' ? 'warning' : 'info'}">${cve.severity}</span>
+                <span class="cve-item__id">${cve.cve}</span>
+            </div>
+            <div class="cve-item__tech">${cve.technology}</div>
+            <div class="cve-item__desc">${cve.description}</div>
+        </div>
+    `).join('');
+}
+
+// ============================================================================
+// ROBOTS.TXT
+// ============================================================================
+function displayRobotsTxt(data) {
+    const c = document.getElementById('robotsTxtContent');
+    if (!c) return;
+    if (!data || !data.found) { c.innerHTML = '<p class="muted">No robots.txt found</p>'; return; }
+
     let html = '';
-    cvesData.forEach(cve => {
-        const color = severityColors[cve.severity] || 'secondary';
-        html += `
-            <div class="border border-${color} rounded p-2 mb-2" style="background: rgba(255,255,255,0.02);">
-                <div class="d-flex align-items-center mb-1">
-                    <span class="badge bg-${color} me-2">${cve.severity}</span>
-                    <code class="text-light">${cve.cve}</code>
-                </div>
-                <small class="text-muted">${cve.technology}</small><br>
-                <small class="text-light">${cve.description}</small>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = html;
+    if (data.sensitive_paths?.length) {
+        html += '<div style="margin-bottom:.4rem;"><span class="text-warning" style="font-size:.72rem;"><i class="bi bi-exclamation-triangle"></i> Sensitive Paths:</span></div>';
+        html += data.sensitive_paths.map(p =>
+            `<div style="font-size:.72rem;padding:.15rem 0;"><code style="color:var(--c-amber);">${p.path}</code> <span class="muted">(${p.keyword})</span></div>`
+        ).join('');
+    }
+    if (data.all_disallowed?.length) {
+        html += `<details><summary>${data.all_disallowed.length} disallowed paths</summary>` +
+            data.all_disallowed.slice(0, 12).map(p => `<div style="font-size:.68rem;color:var(--c-text-3);padding:.1rem 0;"><code>${p}</code></div>`).join('') +
+            '</details>';
+    }
+    if (!html) html = '<p class="muted">robots.txt found, no sensitive paths</p>';
+    c.innerHTML = html;
 }
 
-/**
- * Display Robots.txt Analysis
- */
-function displayRobotsTxt(robotsData) {
-    const container = document.getElementById('robotsTxtContent');
-    if (!container) return;
-    
-    if (!robotsData || !robotsData.found) {
-        container.innerHTML = '<p class="text-muted small">No robots.txt found</p>';
+// ============================================================================
+// DIRECTORY LISTING
+// ============================================================================
+function displayDirectoryListing(data) {
+    const c = document.getElementById('directoryListingContent');
+    if (!c) return;
+    if (!data || !data.vulnerable) {
+        c.innerHTML = '<div class="inline-alert inline-alert--success"><i class="bi bi-check-circle"></i> No directory listing vulnerabilities</div>';
         return;
     }
-    
-    let html = '';
-    
-    if (robotsData.sensitive_paths && robotsData.sensitive_paths.length > 0) {
-        html += '<div class="mb-2"><small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Sensitive Paths Found:</small></div>';
-        html += '<ul class="list-unstyled mb-2">';
-        robotsData.sensitive_paths.forEach(p => {
-            html += `<li><code class="text-warning">${p.path}</code> <small class="text-muted">(${p.keyword})</small></li>`;
-        });
-        html += '</ul>';
-    }
-    
-    if (robotsData.all_disallowed && robotsData.all_disallowed.length > 0) {
-        html += `<details><summary class="small text-muted cursor-pointer">View ${robotsData.all_disallowed.length} disallowed paths</summary>`;
-        html += '<ul class="list-unstyled mt-1">';
-        robotsData.all_disallowed.slice(0, 10).forEach(path => {
-            html += `<li><code class="text-muted small">${path}</code></li>`;
-        });
-        html += '</ul></details>';
-    }
-    
-    if (!html) {
-        html = '<p class="text-muted small">robots.txt found but no sensitive paths detected</p>';
-    }
-    
-    container.innerHTML = html;
+    c.innerHTML = `<div class="inline-alert inline-alert--danger"><i class="bi bi-exclamation-triangle-fill"></i> <strong>Directory Listing Enabled!</strong></div>` +
+        '<div style="margin-top:.4rem;">' + data.exposed_dirs.map(d => `<div style="font-size:.72rem;"><code style="color:var(--c-rose);">${d}</code></div>`).join('') + '</div>';
 }
 
-/**
- * Display Directory Listing Check
- */
-function displayDirectoryListing(dirData) {
-    const container = document.getElementById('directoryListingContent');
-    if (!container) return;
-    
-    if (!dirData || !dirData.vulnerable) {
-        container.innerHTML = `
-            <div class="text-success small">
-                <i class="bi bi-check-circle"></i> No directory listing vulnerabilities detected
-            </div>
-        `;
+// ============================================================================
+// DNS RECORDS (NEW)
+// ============================================================================
+function displayDnsRecords(data) {
+    const c = document.getElementById('dnsRecordsContent');
+    if (!c) return;
+    if (!data || data.length === 0) { c.innerHTML = '<p class="muted">No DNS records retrieved</p>'; return; }
+
+    let html = '<table class="dns-table"><thead><tr><th>Type</th><th>Value</th></tr></thead><tbody>';
+    data.forEach(r => {
+        html += `<tr><td><span class="dns-type-badge">${r.type}</span></td><td>${r.value}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    c.innerHTML = html;
+}
+
+// ============================================================================
+// WHOIS (NEW)
+// ============================================================================
+function displayWhois(data) {
+    const c = document.getElementById('whoisContent');
+    if (!c) return;
+    if (!data || data.error) { c.innerHTML = '<p class="muted">WHOIS data unavailable</p>'; return; }
+
+    const fields = [
+        { label: 'Registrar', value: data.registrar },
+        { label: 'Created', value: data.creation_date },
+        { label: 'Expires', value: data.expiry_date },
+        { label: 'Updated', value: data.updated_date },
+        { label: 'Name Servers', value: data.name_servers },
+        { label: 'Registrant Country', value: data.registrant_country },
+        { label: 'DNSSEC', value: data.dnssec },
+    ].filter(f => f.value);
+
+    if (fields.length === 0) { c.innerHTML = '<p class="muted">Limited WHOIS data available</p>'; return; }
+
+    c.innerHTML = '<div class="whois-grid">' + fields.map(f =>
+        `<div class="whois-item"><div class="whois-item__label">${f.label}</div><div class="whois-item__value">${f.value}</div></div>`
+    ).join('') + '</div>';
+}
+
+// ============================================================================
+// COOKIE SECURITY (NEW)
+// ============================================================================
+function displayCookieSecurity(data) {
+    const c = document.getElementById('cookieSecurityContent');
+    if (!c) return;
+    if (!data || !data.cookies || data.cookies.length === 0) {
+        c.innerHTML = '<div class="inline-alert inline-alert--success"><i class="bi bi-check-circle"></i> No cookies detected or all cookies secure</div>';
         return;
     }
-    
-    let html = `
-        <div class="alert alert-danger py-2 mb-2">
-            <i class="bi bi-exclamation-triangle-fill"></i>
-            <strong>Directory Listing Enabled!</strong>
-        </div>
-        <small class="text-muted">Exposed directories:</small>
-        <ul class="list-unstyled mb-0">
-    `;
-    
-    dirData.exposed_dirs.forEach(dir => {
-        html += `<li><code class="text-danger">${dir}</code></li>`;
-    });
-    
-    html += '</ul>';
-    container.innerHTML = html;
+
+    c.innerHTML = data.cookies.map(ck => {
+        const flags = [];
+        if (ck.secure) flags.push('<span class="cookie-flag cookie-flag--ok">Secure</span>');
+        else flags.push('<span class="cookie-flag cookie-flag--warn">No Secure</span>');
+        if (ck.httponly) flags.push('<span class="cookie-flag cookie-flag--ok">HttpOnly</span>');
+        else flags.push('<span class="cookie-flag cookie-flag--warn">No HttpOnly</span>');
+        if (ck.samesite) flags.push(`<span class="cookie-flag cookie-flag--ok">SameSite=${ck.samesite}</span>`);
+        else flags.push('<span class="cookie-flag cookie-flag--warn">No SameSite</span>');
+        return `<div class="cookie-item"><div class="cookie-name">${ck.name}</div><div class="cookie-flags">${flags.join('')}</div></div>`;
+    }).join('');
 }
 
-// Cached report storage
-let cachedReport = null;
+// ============================================================================
+// HTTP METHODS (NEW)
+// ============================================================================
+function displayHttpMethods(data) {
+    const c = document.getElementById('httpMethodsContent');
+    if (!c) return;
+    if (!data || !data.methods) { c.innerHTML = '<p class="muted">Unable to test HTTP methods</p>'; return; }
 
-/**
- * Generate AI threat report
- */
+    const safe = ['GET', 'HEAD', 'OPTIONS'];
+    const risky = ['PUT', 'DELETE', 'TRACE', 'CONNECT', 'PATCH'];
+
+    c.innerHTML = '<div class="method-list">' + data.methods.map(m => {
+        let cls = 'method-tag--info';
+        if (safe.includes(m)) cls = 'method-tag--safe';
+        if (risky.includes(m)) cls = 'method-tag--risky';
+        return `<span class="method-tag ${cls}">${m}</span>`;
+    }).join('') + '</div>' +
+    (data.risky_methods?.length ? `<div class="inline-alert inline-alert--warning" style="margin-top:.5rem;"><i class="bi bi-exclamation-triangle"></i> Risky methods enabled: ${data.risky_methods.join(', ')}</div>` : '');
+}
+
+// ============================================================================
+// CORS (NEW)
+// ============================================================================
+function displayCors(data) {
+    const c = document.getElementById('corsContent');
+    if (!c) return;
+    if (!data) { c.innerHTML = '<p class="muted">CORS check unavailable</p>'; return; }
+
+    if (data.wildcard_origin) {
+        c.innerHTML = '<div class="cors-status cors-status--warn"><i class="bi bi-exclamation-triangle-fill"></i> Wildcard (*) CORS — any origin can access resources</div>';
+    } else if (data.reflects_origin) {
+        c.innerHTML = '<div class="cors-status cors-status--warn"><i class="bi bi-exclamation-triangle"></i> Origin reflected — potential CORS misconfiguration</div>';
+    } else if (data.cors_enabled) {
+        c.innerHTML = '<div class="cors-status cors-status--info"><i class="bi bi-info-circle"></i> CORS enabled with restricted origins</div>';
+    } else {
+        c.innerHTML = '<div class="cors-status cors-status--ok"><i class="bi bi-check-circle-fill"></i> No permissive CORS policy detected</div>';
+    }
+}
+
+// ============================================================================
+// EXPORT JSON
+// ============================================================================
+function exportJSON(results) {
+    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `aegis-recon-${results.target}-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showAlert('Results exported!', 'success');
+}
+
+// ============================================================================
+// GENERATE REPORT
+// ============================================================================
 async function generateReport() {
-    if (!currentResults) {
-        showAlert('No scan results available', 'warning');
-        return;
-    }
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('reportModal'));
-    modal.show();
-    
-    // Check if we have a cached report for this target in this session
+    if (!currentResults) { showAlert('No scan results available', 'warning'); return; }
+
+    const modal = document.getElementById('reportModal');
+    modal.classList.add('active');
+
     if (cachedReport && cachedReport.target === currentResults.target) {
-        console.log('[AEGIS] Using session report cache');
         displayReport(cachedReport.analysis);
         return;
     }
-    
-    // Reset modal content - loading state
-    document.getElementById('reportModalBody').innerHTML = `
-        <div class="text-center py-5">
-            <div class="spinner-border" style="color: #6366f1;" role="status"></div>
-            <p class="mt-3" style="color: #94a3b8;">Generating AI threat analysis...</p>
-            <small class="text-muted">This may take a few seconds</small>
-        </div>
-    `;
-    
+
+    document.getElementById('reportModalBody').innerHTML =
+        '<div class="loading-state"><span class="loader"></span><p>Generating AI threat analysis...</p></div>';
+
     try {
-        const response = await fetch(`${API_BASE_URL}/analyze`, {
+        const res = await fetch(`${API_BASE_URL}/analyze`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ results: currentResults })
         });
-        
-        const data = await response.json();
-        
-        if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Failed to generate report');
-        }
-        
-        // Cache the report for this session only (no localStorage)
-        cachedReport = {
-            target: currentResults.target,
-            analysis: data.analysis,
-            scanResults: currentResults,
-            cachedAt: new Date().toISOString()
-        };
-        
-        // Display the report
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Report generation failed');
+
+        cachedReport = { target: currentResults.target, analysis: data.analysis, scanResults: currentResults, cachedAt: new Date().toISOString() };
         displayReport(data.analysis);
-        
-    } catch (error) {
-        console.error('[AEGIS] Report Error:', error);
+    } catch (err) {
         document.getElementById('reportModalBody').innerHTML = `
-            <div style="padding: 2rem; text-align: center;">
-                <i class="bi bi-exclamation-triangle" style="font-size: 3rem; color: #f43f5e;"></i>
-                <h5 class="mt-3" style="color: #f8fafc;">Report Generation Failed</h5>
-                <p style="color: #94a3b8;">${error.message}</p>
-                <button class="btn btn-outline-primary" onclick="generateReport()">
-                    <i class="bi bi-arrow-repeat"></i> Retry
-                </button>
-            </div>
-        `;
+            <div style="text-align:center;padding:2rem;">
+                <i class="bi bi-exclamation-triangle" style="font-size:2.5rem;color:var(--c-rose);"></i>
+                <h4 style="margin:.75rem 0 .5rem;">Report Generation Failed</h4>
+                <p class="muted">${err.message}</p>
+                <button class="btn btn--ghost" onclick="generateReport()" style="margin-top:.75rem;"><i class="bi bi-arrow-repeat"></i> Retry</button>
+            </div>`;
     }
 }
 
-/**
- * Display the generated report with rich formatting
- */
+// ============================================================================
+// DISPLAY REPORT (in modal)
+// ============================================================================
 function displayReport(analysis) {
-    const container = document.getElementById('reportModalBody');
+    const c = document.getElementById('reportModalBody');
     const target = cachedReport?.target || currentResults?.target || 'Unknown';
     const score = cachedReport?.scanResults?.security_score || currentResults?.security_score || 100;
-    
-    // Determine risk level
+
     let riskLevel, riskColor, riskBg;
-    if (score >= 80) {
-        riskLevel = 'LOW'; riskColor = '#10b981'; riskBg = 'rgba(16, 185, 129, 0.15)';
-    } else if (score >= 60) {
-        riskLevel = 'MEDIUM'; riskColor = '#f59e0b'; riskBg = 'rgba(245, 158, 11, 0.15)';
-    } else if (score >= 40) {
-        riskLevel = 'HIGH'; riskColor = '#f97316'; riskBg = 'rgba(249, 115, 22, 0.15)';
-    } else {
-        riskLevel = 'CRITICAL'; riskColor = '#ef4444'; riskBg = 'rgba(239, 68, 68, 0.15)';
-    }
-    
-    // Convert markdown to styled HTML
-    let reportContent = analysis.report
-        .replace(/^### (.*$)/gim, '<h5 style="color: #f8fafc; margin-top: 1.5rem; margin-bottom: 0.75rem; font-weight: 600;">$1</h5>')
-        .replace(/^## (.*$)/gim, '<h4 style="color: #f8fafc; margin-top: 1.5rem; margin-bottom: 0.75rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">$1</h4>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #f8fafc;">$1</strong>')
-        .replace(/^- (.*$)/gim, '<li style="color: #cbd5e1; margin-bottom: 0.5rem;">$1</li>')
-        .replace(/`(.*?)`/g, '<code style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.85rem;">$1</code>')
-        .replace(/\n\n/g, '</p><p style="color: #94a3b8; line-height: 1.7;">')
+    if (score >= 80) { riskLevel = 'LOW'; riskColor = '#10b981'; riskBg = 'rgba(16,185,129,.15)'; }
+    else if (score >= 60) { riskLevel = 'MEDIUM'; riskColor = '#f59e0b'; riskBg = 'rgba(245,158,11,.15)'; }
+    else if (score >= 40) { riskLevel = 'HIGH'; riskColor = '#f97316'; riskBg = 'rgba(249,115,22,.15)'; }
+    else { riskLevel = 'CRITICAL'; riskColor = '#ef4444'; riskBg = 'rgba(239,68,68,.15)'; }
+
+    let content = analysis.report
+        .replace(/^### (.*$)/gim, '<h5 style="color:#f8fafc;margin-top:1.2rem;margin-bottom:.5rem;font-weight:600;">$1</h5>')
+        .replace(/^## (.*$)/gim, '<h4 style="color:#f8fafc;margin-top:1.2rem;margin-bottom:.5rem;font-weight:700;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:.35rem;">$1</h4>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#f8fafc;">$1</strong>')
+        .replace(/^- (.*$)/gim, '<li style="color:#cbd5e1;margin-bottom:.35rem;position:relative;padding-left:1rem;"><span style="position:absolute;left:0;color:var(--c-indigo);">▸</span>$1</li>')
+        .replace(/`(.*?)`/g, '<code style="background:rgba(99,102,241,.15);color:#a5b4fc;padding:.1rem .35rem;border-radius:3px;font-size:.8rem;">$1</code>')
+        .replace(/\n\n/g, '</p><p style="color:#94a3b8;line-height:1.7;">')
         .replace(/\n/g, '<br>');
-    
-    // Wrap lists properly
-    reportContent = reportContent.replace(/(<li.*?<\/li>)+/g, '<ul style="list-style: none; padding-left: 0; margin: 1rem 0;">$&</ul>');
-    reportContent = reportContent.replace(/<li/g, '<li style="position: relative; padding-left: 1.5rem;"><span style="position: absolute; left: 0; color: #6366f1;">▸</span');
-    
-    container.innerHTML = `
-        <div id="reportPrintArea" style="background: linear-gradient(135deg, #0f172a, #1e293b); padding: 0;">
-            
-            <!-- Report Header -->
-            <div style="background: linear-gradient(135deg, #6366f1, #4f46e5); padding: 2rem; text-align: center; border-radius: 12px 12px 0 0;">
-                <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                    <i class="bi bi-shield-fill-check" style="font-size: 2rem; color: white;"></i>
-                    <h2 style="margin: 0; color: white; font-weight: 800; letter-spacing: -0.02em;">AEGIS RECON</h2>
-                </div>
-                <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 0.85rem; letter-spacing: 2px;">THREAT INTELLIGENCE REPORT</p>
+
+    c.innerHTML = `
+        <div id="reportPrintArea" style="background:linear-gradient(135deg,#0f172a,#1e293b);">
+            <div style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:1.5rem;text-align:center;border-radius:var(--r-lg) var(--r-lg) 0 0;">
+                <h2 style="margin:0;color:#fff;font-weight:800;">🛡️ AEGIS RECON</h2>
+                <p style="margin:.25rem 0 0;color:rgba(255,255,255,.75);font-size:.75rem;letter-spacing:.15em;">THREAT INTELLIGENCE REPORT</p>
             </div>
-            
-            <!-- Target Info Bar -->
-            <div style="background: rgba(0,0,0,0.3); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                <div>
-                    <small style="color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem;">Target</small>
-                    <div style="color: #f8fafc; font-weight: 600; font-size: 1.1rem;">${target}</div>
-                </div>
-                <div style="text-align: center;">
-                    <small style="color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem;">Security Score</small>
-                    <div style="color: ${riskColor}; font-weight: 800; font-size: 1.5rem;">${score}/100</div>
-                </div>
-                <div style="text-align: right;">
-                    <small style="color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem;">Risk Level</small>
-                    <div style="background: ${riskBg}; color: ${riskColor}; padding: 0.25rem 0.75rem; border-radius: 20px; font-weight: 700; font-size: 0.85rem; display: inline-block;">${riskLevel}</div>
-                </div>
+            <div style="background:rgba(0,0,0,.25);padding:.75rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;">
+                <div><small style="color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-size:.6rem;">Target</small><div style="color:#f8fafc;font-weight:600;">${target}</div></div>
+                <div style="text-align:center;"><small style="color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-size:.6rem;">Score</small><div style="color:${riskColor};font-weight:800;font-size:1.3rem;">${score}/100</div></div>
+                <div style="text-align:right;"><small style="color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-size:.6rem;">Risk</small><div style="background:${riskBg};color:${riskColor};padding:.15rem .6rem;border-radius:20px;font-weight:700;font-size:.78rem;">${riskLevel}</div></div>
             </div>
-            
-            <!-- Report Content -->
-            <div style="padding: 2rem;">
-                <p style="color: #94a3b8; line-height: 1.7;">
-                    ${reportContent}
-                </p>
+            <div style="padding:1.25rem;"><p style="color:#94a3b8;line-height:1.7;">${content}</p></div>
+            <div style="border-top:1px solid rgba(255,255,255,.06);padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;">
+                <div style="color:#64748b;font-size:.7rem;"><i class="bi bi-robot"></i> ${analysis.model || 'AI'} &bull; ${new Date(analysis.generated_at).toLocaleString()}</div>
+                <div style="color:#475569;font-size:.65rem;">© ${new Date().getFullYear()} VexSpitta &bull; github.com/Vexx-bit/Aegis-Recon</div>
             </div>
-            
-            <!-- Report Footer -->
-            <div style="border-top: 1px solid rgba(255,255,255,0.1); padding: 1.5rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                <div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.8rem;">
-                        <i class="bi bi-robot"></i>
-                        <span>Generated by ${analysis.model || 'AI Analysis'}</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.8rem; margin-top: 0.25rem;">
-                        <i class="bi bi-clock"></i>
-                        <span>${new Date(analysis.generated_at).toLocaleString()}</span>
-                    </div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="color: #64748b; font-size: 0.75rem;">
-                        <i class="bi bi-github"></i> github.com/Vexx-bit/Aegis-Recon
-                    </div>
-                    <div style="color: #475569; font-size: 0.7rem; margin-top: 0.25rem;">
-                        © ${new Date().getFullYear()} VexSpitta. All Rights Reserved.
-                    </div>
-                </div>
-            </div>
-            
-        </div>
-    `;
+        </div>`;
 }
-/**
- * Download report as PDF using jsPDF directly
- * Premium professional design with enhanced visual elements
- */
+
+// ============================================================================
+// PDF DOWNLOAD
+// ============================================================================
 function downloadReportPDF() {
-    if (!cachedReport || !cachedReport.analysis) {
-        showAlert('Please generate a report first', 'warning');
-        return;
-    }
-    
-    const target = cachedReport.target || currentResults?.target || 'Unknown';
-    const score = cachedReport.scanResults?.security_score || currentResults?.security_score || 100;
-    const timestamp = new Date().toLocaleDateString('en-US', { 
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
-    });
-    const timeGenerated = new Date().toLocaleTimeString('en-US', { 
-        hour: '2-digit', minute: '2-digit' 
-    });
-    
-    // Get report content
-    const reportContent = typeof cachedReport.analysis === 'string' 
-        ? cachedReport.analysis 
-        : cachedReport.analysis?.report || '';
-    
-    // Determine risk level with colors
-    let riskLevel, riskColor, riskBg;
-    if (score >= 80) { 
-        riskLevel = 'LOW RISK'; 
-        riskColor = [16, 185, 129]; 
-        riskBg = [220, 252, 231];
-    } else if (score >= 60) { 
-        riskLevel = 'MEDIUM RISK'; 
-        riskColor = [245, 158, 11]; 
-        riskBg = [254, 243, 199];
-    } else if (score >= 40) { 
-        riskLevel = 'HIGH RISK'; 
-        riskColor = [249, 115, 22]; 
-        riskBg = [255, 237, 213];
-    } else { 
-        riskLevel = 'CRITICAL'; 
-        riskColor = [239, 68, 68]; 
-        riskBg = [254, 226, 226];
-    }
-    
-    // Initialize jsPDF
+    if (!cachedReport?.analysis) { showAlert('Generate a report first', 'warning'); return; }
+
+    const target = cachedReport.target || 'Unknown';
+    const score = cachedReport.scanResults?.security_score || 100;
+    const timestamp = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const timeGen = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const reportContent = typeof cachedReport.analysis === 'string' ? cachedReport.analysis : cachedReport.analysis?.report || '';
+
+    let riskLevel, riskColor;
+    if (score >= 80) { riskLevel = 'LOW RISK'; riskColor = [16, 185, 129]; }
+    else if (score >= 60) { riskLevel = 'MEDIUM RISK'; riskColor = [245, 158, 11]; }
+    else if (score >= 40) { riskLevel = 'HIGH RISK'; riskColor = [249, 115, 22]; }
+    else { riskLevel = 'CRITICAL'; riskColor = [239, 68, 68]; }
+
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    
-    const pageWidth = 210;
-    const pageHeight = 297;
-    const margin = 15;
-    const contentWidth = pageWidth - (margin * 2);
+    const pw = 210, ph = 297, m = 15, cw = pw - m * 2;
     let y = 0;
-    
-    // ========== HEADER BANNER ==========
-    // Dark header background
-    doc.setFillColor(15, 23, 42);
-    doc.rect(0, 0, pageWidth, 45, 'F');
-    
-    // Blue accent strip at top
-    doc.setFillColor(59, 130, 246);
-    doc.rect(0, 0, pageWidth, 3, 'F');
-    
-    // Shield icon (drawn with shapes)
-    doc.setFillColor(59, 130, 246);
-    doc.roundedRect(margin, 12, 22, 25, 3, 3, 'F');
-    doc.setFillColor(30, 64, 175);
-    doc.roundedRect(margin + 2, 14, 18, 21, 2, 2, 'F');
-    doc.setFillColor(255, 255, 255);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('AR', margin + 11, 27, { align: 'center' });
-    
-    // Title
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.setFont('helvetica', 'bold');
-    doc.text('AEGIS RECON', margin + 28, 22);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(148, 163, 184);
-    doc.setFont('helvetica', 'normal');
-    doc.text('THREAT INTELLIGENCE REPORT', margin + 28, 30);
-    
-    // Right side - Date & Classification
-    doc.setFontSize(8);
-    doc.setTextColor(239, 68, 68);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CONFIDENTIAL', pageWidth - margin, 15, { align: 'right' });
-    
-    doc.setTextColor(148, 163, 184);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(timestamp, pageWidth - margin, 23, { align: 'right' });
-    doc.text(timeGenerated, pageWidth - margin, 30, { align: 'right' });
-    
-    y = 55;
-    
-    // ========== SUMMARY CARD ==========
-    // Card background with shadow effect
-    doc.setFillColor(241, 245, 249);
-    doc.roundedRect(margin - 1, y - 1, contentWidth + 2, 37, 4, 4, 'F');
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(margin, y, contentWidth, 35, 3, 3, 'FD');
-    
-    // Column widths
-    const col1 = margin + 5;
-    const col2 = margin + 70;
-    const col3 = margin + 115;
-    
-    // Vertical dividers
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.line(margin + 65, y + 5, margin + 65, y + 30);
-    doc.line(margin + 110, y + 5, margin + 110, y + 30);
-    
-    // Target Domain
-    doc.setFontSize(7);
-    doc.setTextColor(100, 116, 139);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TARGET DOMAIN', col1, y + 10);
-    doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42);
-    doc.setFont('helvetica', 'bold');
-    // Truncate long domains
-    const displayTarget = target.length > 25 ? target.substring(0, 22) + '...' : target;
-    doc.text(displayTarget, col1, y + 20);
-    
-    // Security Score with circular indicator
-    doc.setFontSize(7);
-    doc.setTextColor(100, 116, 139);
-    doc.text('SECURITY SCORE', col2, y + 10);
-    
-    // Score circle background
-    doc.setFillColor(riskBg[0], riskBg[1], riskBg[2]);
-    doc.circle(col2 + 15, y + 22, 10, 'F');
-    doc.setFontSize(16);
-    doc.setTextColor(riskColor[0], riskColor[1], riskColor[2]);
-    doc.setFont('helvetica', 'bold');
-    doc.text(String(score), col2 + 15, y + 26, { align: 'center' });
-    
-    // Risk Level
-    doc.setFontSize(7);
-    doc.setTextColor(100, 116, 139);
-    doc.text('RISK ASSESSMENT', col3, y + 10);
-    
-    // Risk badge
+
+    // Header
+    doc.setFillColor(15, 23, 42); doc.rect(0, 0, pw, 42, 'F');
+    doc.setFillColor(99, 102, 241); doc.rect(0, 0, pw, 3, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+    doc.text('AEGIS RECON', m, 22);
+    doc.setFontSize(9); doc.setTextColor(148, 163, 184); doc.setFont('helvetica', 'normal');
+    doc.text('THREAT INTELLIGENCE REPORT', m, 30);
+    doc.setFontSize(8); doc.setTextColor(239, 68, 68); doc.setFont('helvetica', 'bold');
+    doc.text('CONFIDENTIAL', pw - m, 15, { align: 'right' });
+    doc.setTextColor(148, 163, 184); doc.setFont('helvetica', 'normal');
+    doc.text(timestamp, pw - m, 23, { align: 'right' });
+    doc.text(timeGen, pw - m, 30, { align: 'right' });
+
+    y = 52;
+    // Summary card
+    doc.setFillColor(255, 255, 255); doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(m, y, cw, 30, 3, 3, 'FD');
+    doc.setFontSize(7); doc.setTextColor(100, 116, 139); doc.setFont('helvetica', 'bold');
+    doc.text('TARGET', m + 5, y + 10);
+    doc.setFontSize(11); doc.setTextColor(15, 23, 42);
+    doc.text(target.length > 30 ? target.substring(0, 27) + '...' : target, m + 5, y + 18);
+
+    doc.setFontSize(7); doc.setTextColor(100, 116, 139);
+    doc.text('SCORE', m + 75, y + 10);
+    doc.setFontSize(16); doc.setTextColor(riskColor[0], riskColor[1], riskColor[2]); doc.setFont('helvetica', 'bold');
+    doc.text(String(score), m + 85, y + 22);
+
+    doc.setFontSize(7); doc.setTextColor(100, 116, 139); doc.setFont('helvetica', 'bold');
+    doc.text('RISK', m + 120, y + 10);
     doc.setFillColor(riskColor[0], riskColor[1], riskColor[2]);
-    doc.roundedRect(col3, y + 15, 50, 12, 6, 6, 'F');
-    doc.setFontSize(9);
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.text(riskLevel, col3 + 25, y + 23, { align: 'center' });
-    
-    y += 45;
-    
-    // ========== REPORT CONTENT ==========
-    const lines = reportContent.split('\n');
-    
-    // Helper function for page breaks
-    function checkPageBreak(needed) {
-        if (y + needed > pageHeight - 25) {
-            doc.addPage();
-            y = 20;
-            return true;
-        }
-        return false;
-    }
-    
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        if (!line) { y += 2; continue; }
-        
-        // Skip metadata
-        if (line.startsWith('*Report generated') || line.startsWith('---')) continue;
-        
-        // H2 Headers - Section titles
+    doc.roundedRect(m + 120, y + 13, 45, 10, 5, 5, 'F');
+    doc.setFontSize(8); doc.setTextColor(255, 255, 255);
+    doc.text(riskLevel, m + 142, y + 20, { align: 'center' });
+
+    y += 40;
+
+    // Content
+    function pageBreak(n) { if (y + n > ph - 25) { doc.addPage(); y = 20; } }
+
+    reportContent.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line || line.startsWith('*Report') || line === '---') return;
+
         if (line.startsWith('## ')) {
-            checkPageBreak(18);
-            y += 8;
-            
-            // Blue left border
-            doc.setFillColor(59, 130, 246);
-            doc.rect(margin, y - 4, 3, 10, 'F');
-            
-            doc.setFontSize(13);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(15, 23, 42);
-            doc.text(line.replace('## ', ''), margin + 6, y + 2);
-            
-            y += 10;
-            continue;
+            pageBreak(16); y += 6;
+            doc.setFillColor(99, 102, 241); doc.rect(m, y - 4, 3, 10, 'F');
+            doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42);
+            doc.text(line.replace('## ', ''), m + 6, y + 2); y += 10; return;
         }
-        
-        // H3 Headers
         if (line.startsWith('### ')) {
-            checkPageBreak(12);
-            y += 4;
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(51, 65, 85);
-            doc.text(line.replace('### ', ''), margin, y);
-            y += 6;
-            continue;
+            pageBreak(10); y += 3;
+            doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(51, 65, 85);
+            doc.text(line.replace('### ', ''), m, y); y += 6; return;
         }
-        
-        // Bullet points with colored dots
         if (line.startsWith('- ') || line.startsWith('▸')) {
-            checkPageBreak(10);
-            let bulletText = line.replace(/^[-▸]\s*/, '');
-            
-            // Check for warning indicators
-            let bulletColor = [59, 130, 246]; // Default blue
-            if (bulletText.includes('⚠️') || bulletText.includes('!')) {
-                bulletColor = [245, 158, 11]; // Warning orange
-            }
-            if (bulletText.includes('🟢')) bulletColor = [16, 185, 129];
-            if (bulletText.includes('🟡')) bulletColor = [245, 158, 11];
-            if (bulletText.includes('🟠')) bulletColor = [249, 115, 22];
-            if (bulletText.includes('🔴')) bulletColor = [239, 68, 68];
-            
-            // Clean emojis
-            bulletText = bulletText.replace(/[🟢🟡🟠🔴⚠️]/g, '').trim();
-            bulletText = bulletText.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '"$1"');
-            
-            // Draw bullet
-            doc.setFillColor(bulletColor[0], bulletColor[1], bulletColor[2]);
-            doc.circle(margin + 4, y - 1, 1.5, 'F');
-            
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(51, 65, 85);
-            
-            const bulletLines = doc.splitTextToSize(bulletText, contentWidth - 12);
-            for (let j = 0; j < bulletLines.length; j++) {
-                if (j > 0) checkPageBreak(4.5);
-                doc.text(bulletLines[j], margin + 10, y);
-                y += 4.5;
-            }
-            y += 1;
-            continue;
+            pageBreak(8);
+            let t = line.replace(/^[-▸]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '"$1"').replace(/[🟢🟡🟠🔴⚠️]/g, '').trim();
+            doc.setFillColor(99, 102, 241); doc.circle(m + 4, y - 1, 1.2, 'F');
+            doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(51, 65, 85);
+            doc.splitTextToSize(t, cw - 12).forEach(l => { pageBreak(4.5); doc.text(l, m + 10, y); y += 4.5; });
+            y += 1; return;
         }
-        
-        // Numbered items - simple corporate style
-        if (/^\d+\./.test(line)) {
-            checkPageBreak(10);
-            let itemText = line.replace(/\*\*(.*?)\*\*/g, '$1');
-            
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(51, 65, 85);
-            
-            const itemLines = doc.splitTextToSize(itemText, contentWidth - 5);
-            for (let j = 0; j < itemLines.length; j++) {
-                if (j > 0) checkPageBreak(4.5);
-                doc.text(itemLines[j], margin + 5, y);
-                y += 4.5;
-            }
-            y += 1;
-            continue;
-        }
-        
-        // Regular text
-        line = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '"$1"');
-        line = line.replace(/[🟢🟡🟠🔴⚠️]/g, '');
-        
-        if (line.length > 0) {
-            checkPageBreak(6);
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(71, 85, 105);
-            
-            const paraLines = doc.splitTextToSize(line, contentWidth);
-            for (let j = 0; j < paraLines.length; j++) {
-                checkPageBreak(4.5);
-                doc.text(paraLines[j], margin, y);
-                y += 4.5;
-            }
+        let t = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`(.*?)`/g, '"$1"').replace(/[🟢🟡🟠🔴⚠️]/g, '');
+        if (t.length) {
+            pageBreak(6);
+            doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+            doc.splitTextToSize(t, cw).forEach(l => { pageBreak(4.5); doc.text(l, m, y); y += 4.5; });
             y += 2;
         }
-    }
-    
-    // ========== FOOTER ON ALL PAGES ==========
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let p = 1; p <= totalPages; p++) {
-        doc.setPage(p);
-        
-        // Footer line
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.3);
-        doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
-        
-        // Footer text
-        doc.setFontSize(8);
-        doc.setTextColor(148, 163, 184);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Aegis Recon AI v${AUTHOR.version}`, margin, pageHeight - 12);
-        doc.text(`Page ${p} of ${totalPages}`, pageWidth / 2, pageHeight - 12, { align: 'center' });
-        doc.text(`© ${new Date().getFullYear()} ${AUTHOR.name}`, pageWidth - margin, pageHeight - 12, { align: 'right' });
-        
-        // Small branding
-        doc.setFontSize(7);
-        doc.setTextColor(180, 190, 200);
-        doc.text('github.com/Vexx-bit/Aegis-Recon', pageWidth / 2, pageHeight - 8, { align: 'center' });
-    }
-    
-    // Save PDF
-    doc.save(`Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`);
-    showAlert('✓ Report Downloaded', 'success');
-}
-// ============================================================================
-// UTILITIES
-// ============================================================================
+    });
 
-/**
- * Reset dashboard for new scan
- */
+    // Footers
+    const pages = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= pages; p++) {
+        doc.setPage(p);
+        doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3); doc.line(m, ph - 16, pw - m, ph - 16);
+        doc.setFontSize(7); doc.setTextColor(148, 163, 184); doc.setFont('helvetica', 'normal');
+        doc.text(`Aegis Recon v${AUTHOR.version}`, m, ph - 10);
+        doc.text(`Page ${p}/${pages}`, pw / 2, ph - 10, { align: 'center' });
+        doc.text(`© ${new Date().getFullYear()} ${AUTHOR.name}`, pw - m, ph - 10, { align: 'right' });
+    }
+
+    doc.save(`Aegis-Recon-${target.replace(/[^a-zA-Z0-9]/g, '-')}-Report.pdf`);
+    showAlert('Report downloaded!', 'success');
+}
+
+// ============================================================================
+// RESET
+// ============================================================================
 function resetDashboard() {
     domainInput.value = '';
-    
-    document.getElementById('statSubdomains').textContent = '0';
-    document.getElementById('statHosts').textContent = '0';
-    document.getElementById('statVulns').textContent = '0';
-    document.getElementById('statEmails').textContent = '0';
-    
-    document.getElementById('hostsContent').innerHTML = `
-        <div class="text-center py-5 text-muted">
-            <i class="bi bi-search fs-1"></i>
-            <p class="mt-3 mb-0">Enter a domain above to start scanning</p>
-        </div>
-    `;
-    document.getElementById('technologyContent').innerHTML = '<p class="text-muted small mb-0">No data yet</p>';
-    document.getElementById('emailsList').innerHTML = '<p class="text-muted small mb-0">No data yet</p>';
-    
+    ['statSubdomains', 'statHosts', 'statVulns', 'statEmails', 'statDns'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '0';
+    });
+    document.getElementById('hostsContent').innerHTML = '<div class="empty-state"><i class="bi bi-shield-shaded"></i><h4>Ready to Scan</h4><p>Enter a target domain to begin</p></div>';
+    ['technologyContent', 'emailsList', 'securityHeadersContent', 'sslInfoContent', 'knownCVEsContent',
+     'adminPanelsContent', 'robotsTxtContent', 'directoryListingContent', 'dnsRecordsContent',
+     'whoisContent', 'cookieSecurityContent', 'httpMethodsContent', 'corsContent'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<p class="muted">Awaiting scan...</p>';
+    });
+    const scoreSection = document.getElementById('securityScoreSection');
+    if (scoreSection) scoreSection.classList.add('hidden');
     newScanBtn.style.display = 'none';
     statusSection.classList.add('hidden');
-    
     const reportBtn = document.getElementById('generateReportBtn');
     if (reportBtn) reportBtn.disabled = true;
-    
+    const exportBtn = document.getElementById('exportJsonBtn');
+    if (exportBtn) exportBtn.disabled = true;
     currentResults = null;
+    cachedReport = null;
     domainInput.focus();
 }
 
-/**
- * Show alert message
- */
+// ============================================================================
+// ALERTS
+// ============================================================================
 function showAlert(message, type = 'info') {
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type} alert-dismissible fade show`;
-    alert.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    alertContainer.appendChild(alert);
-    
-    setTimeout(() => {
-        alert.remove();
-    }, 5000);
+    const el = document.createElement('div');
+    el.className = `alert-item alert-item--${type}`;
+    el.innerHTML = `<span>${message}</span><button class="alert-close" onclick="this.parentElement.remove()">&times;</button>`;
+    alertContainer.appendChild(el);
+    setTimeout(() => el.remove(), 5000);
 }
 
 // ============================================================================
-// SIGNATURE - DO NOT REMOVE
+// SIGNATURE
 // ============================================================================
-console.log(`%c
-    ╔══════════════════════════════════════╗
-    ║  🛡️ AEGIS RECON - Loaded Successfully ║
-    ║  👤 Author: ${AUTHOR.name.padEnd(24)}║
-    ║  📦 Version: ${AUTHOR.version.padEnd(23)}║
-    ╚══════════════════════════════════════╝
-`, 'color: #10b981; font-family: monospace;');
+console.log(`%c 🛡️ AEGIS RECON v${AUTHOR.version} — Loaded | ${AUTHOR.name}`, 'color:#10b981;font-family:monospace;');
