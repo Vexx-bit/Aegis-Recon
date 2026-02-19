@@ -404,8 +404,28 @@ code, pre { font-family: var(--ff-mono); }
   75% { transform: translateX(4px); }
 }
 
-/* Footer separator */
+/* Footer separator & branding */
 .footer-sep { color: var(--c-text-3); font-size: .6rem; }
+
+.powered-by {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  color: var(--c-text-3) !important;
+  font-size: .7rem;
+  transition: opacity var(--t-fast);
+}
+.powered-by:hover { opacity: .8; color: var(--c-text-2) !important; }
+.powered-by span { white-space: nowrap; }
+.footer-logo {
+  height: 18px;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+  opacity: .85;
+  transition: opacity var(--t-fast);
+}
+.powered-by:hover .footer-logo { opacity: 1; }
 
 /* ═══════════════════════════════════════════════
    PULSE BADGE (Scanning indicator)
