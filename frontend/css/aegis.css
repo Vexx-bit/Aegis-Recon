@@ -184,8 +184,10 @@ code, pre { font-family: var(--ff-mono); }
   align-items: center;
 }
 .topbar__logo {
-  height: 40px;
+  height: 120px;
   width: auto;
+  margin: -40px 0;
+  object-fit: contain;
 }
 .topbar__right {
   display: flex;
@@ -194,10 +196,10 @@ code, pre { font-family: var(--ff-mono); }
 }
 @media (min-width:600px) {
   .topbar { padding: 1rem 1.5rem; }
-  .topbar__logo { height: 48px; }
+  .topbar__logo { height: 140px; margin: -46px 0; }
 }
 @media (min-width:1200px) {
-  .topbar__logo { height: 54px; }
+  .topbar__logo { height: 160px; margin: -52px 0; }
 }
 
 /* ═══════════════════════════════════════════════
