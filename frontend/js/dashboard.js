@@ -25,18 +25,18 @@
 ║ /_/   \\_\\_____\\____|___|____/  |_| \\_\\_____\\____\\___/|_| \\_|  ║
 ╠═══════════════════════════════════════════════════════════════╣
 ║  🛡️  Advanced Threat Intelligence System  v2.0                 ║
-║  👤 Author: VexSpitta                                          ║
-║  🔗 GitHub: https://github.com/Vexx-bit                        ║
+║  ⚡ Powered by: Rapid Tech Solutions                            ║
+║  🔗 https://rapidtech.software                                 ║
 ╚═══════════════════════════════════════════════════════════════╝`;
     console.log(B, 'color:#00ff88;font-family:monospace;font-weight:bold;');
-    console.log('%c🔐 Aegis Recon v2.0.0 | © 2024-2026 VexSpitta', 'color:#3b82f6;font-size:14px;font-weight:bold;');
+    console.log('%c🔐 Aegis Recon v2.0.0 | © 2024-2026 Rapid Tech Solutions', 'color:#3b82f6;font-size:14px;font-weight:bold;');
 })();
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 const API_BASE_URL = window.AEGIS_CONFIG?.apiBaseUrl || '/api';
-const AUTHOR = { name: 'VexSpitta', github: 'https://github.com/Vexx-bit', repo: 'https://github.com/Vexx-bit/Aegis-Recon', version: '2.0.0' };
+const AUTHOR = { name: 'Rapid Tech Solutions', website: 'https://rapidtech.software', github: 'https://github.com/Vexx-bit', repo: 'https://github.com/Vexx-bit/Aegis-Recon', version: '2.0.0' };
 
 // State
 let currentResults = null;
@@ -685,7 +685,7 @@ function displayReport(analysis) {
             <div style="padding:1.25rem;"><p style="color:#94a3b8;line-height:1.7;">${content}</p></div>
             <div style="border-top:1px solid rgba(255,255,255,.06);padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;">
                 <div style="color:#64748b;font-size:.7rem;"><i class="bi bi-robot"></i> ${analysis.model || 'AI'} &bull; ${new Date(analysis.generated_at).toLocaleString()}</div>
-                <div style="color:#475569;font-size:.65rem;">© ${new Date().getFullYear()} VexSpitta &bull; github.com/Vexx-bit/Aegis-Recon</div>
+                <div style="color:#475569;font-size:.65rem;">© ${new Date().getFullYear()} Rapid Tech Solutions &bull; rapidtech.software</div>
             </div>
         </div>`;
 }
@@ -804,6 +804,8 @@ function downloadReportPDF() {
 // ============================================================================
 function resetDashboard() {
     domainInput.value = '';
+    const consentCb = document.getElementById('consentCheckbox');
+    if (consentCb) consentCb.checked = false;
     ['statSubdomains', 'statHosts', 'statVulns', 'statEmails', 'statDns'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.textContent = '0';
