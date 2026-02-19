@@ -90,6 +90,16 @@ async function handleScanSubmit(e) {
     const domain = domainInput.value.trim();
     if (!domain) { showAlert('Please enter a domain', 'warning'); return; }
 
+    // ── Consent gate ──
+    const consentCb = document.getElementById('consentCheckbox');
+    const consentLabel = document.getElementById('consentLabel');
+    if (consentCb && !consentCb.checked) {
+        consentLabel.classList.add('consent-check--error');
+        showAlert('You must confirm authorization before scanning', 'warning');
+        consentCb.addEventListener('change', () => consentLabel.classList.remove('consent-check--error'), { once: true });
+        return;
+    }
+
     const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 
     // UI → scanning state
