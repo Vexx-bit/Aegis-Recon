@@ -178,30 +178,14 @@ code, pre { font-family: var(--ff-mono); }
 .topbar__brand {
   display: flex;
   align-items: center;
-  gap: .65rem;
 }
-.topbar__icon {
-  font-size: 1.5rem;
-  background: linear-gradient(135deg, var(--c-indigo), var(--c-cyan));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.topbar__logo-link {
+  display: flex;
+  align-items: center;
 }
-.topbar__title {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: .04em;
-  background: linear-gradient(135deg, #f8fafc, #94a3b8);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.topbar__sub {
-  display: block;
-  font-size: .55rem;
-  letter-spacing: .2em;
-  color: var(--c-text-3);
-  font-weight: 600;
+.topbar__logo {
+  height: 28px;
+  width: auto;
 }
 .topbar__right {
   display: flex;
@@ -210,8 +194,10 @@ code, pre { font-family: var(--ff-mono); }
 }
 @media (min-width:600px) {
   .topbar { padding: 1rem 1.5rem; }
-  .topbar__title { font-size: 1.4rem; }
-  .topbar__icon { font-size: 1.8rem; }
+  .topbar__logo { height: 34px; }
+}
+@media (min-width:1200px) {
+  .topbar__logo { height: 38px; }
 }
 
 /* ═══════════════════════════════════════════════
